@@ -1,0 +1,60 @@
+# EditorConfig helps maintain consistent coding styles across different
+# editors and IDEs. https://editorconfig.org
+# This is a safety net BEFORE Prettier/ESLint run — it catches things
+# like tab-vs-space and line-ending mismatches at the editor level,
+# before you even save a file.
+
+root = true
+
+# ── Defaults for everything ────────────────────
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# TypeScript / JavaScript
+[*.{js,jsx,ts,tsx,mjs,cjs}]
+indent_size = 2
+
+# JSON
+[*.{json,jsonc}]
+indent_size = 2
+
+# YAML
+[*.{yml,yaml}]
+indent_size = 2
+
+# Markdown
+# Trailing whitespace is sometimes meaningful in Markdown (line breaks),
+# so don't strip it here.
+[*.md]
+trim_trailing_whitespace = false
+indent_size = 2
+
+# Prisma schema
+[*.prisma]
+indent_size = 2
+
+# CSS / Tailwind
+[*.{css,scss}]
+indent_size = 2
+
+# Docker
+[Dockerfile*]
+indent_size = 4
+
+# Shell scripts
+[*.sh]
+indent_style = space
+indent_size = 2
+
+# Makefiles require actual tabs — do not touch ──
+[Makefile]
+indent_style = tab
+
+# package.json specifically
+[package.json]
+indent_size = 2

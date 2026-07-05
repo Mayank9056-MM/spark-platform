@@ -1,0 +1,47 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+build
+.next
+**/.next
+out
+.turbo
+**/.turbo
+
+# Generated / Prisma
+**/generated
+**/*.generated.ts
+packages/database/prisma/migrations
+
+# Package manager
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor/OS
+.vscode
+.idea
+.DS_Store
+
+# Coverage & test artifacts
+coverage
+.nyc_output
+playwright-report
+test-results
+
+# Misc
+public
+CHANGELOG.md
