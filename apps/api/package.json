@@ -1,0 +1,21 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/server.ts",
+  "scripts": {
+    "test": "vitest run --coverage",
+    "test:watch": "vitest --watch"
+  },
+  "keywords": [],
+  "author": "Mayank Mahajan",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@types/supertest": "^7.2.0",
+    "supertest": "^7.2.2"
+  },
+  "dependencies": {
+    "@spark/config": "workspace:*"
+  }
+}
