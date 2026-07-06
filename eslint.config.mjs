@@ -87,11 +87,17 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       ...nextPlugin.configs.recommended.rules,
       ...nextPlugin.configs['core-web-vitals'].rules,
+
+      // App Router doesn't use /pages
+      '@next/next/no-html-link-for-pages': 'off',
+
       'react/react-in-jsx-scope': 'off',
       'react/prop-types': 'off',
     },
     settings: {
-      react: { version: 'detect' },
+      react: {
+        version: 'detect',
+      },
     },
   },
 
