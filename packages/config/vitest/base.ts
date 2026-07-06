@@ -7,6 +7,7 @@ export const baseConfig: ViteUserConfig = {
     restoreMocks: true,
     testTimeout: 10_000,
     hookTimeout: 10_000,
+    passWithNoTests: true,
     reporters: process.env.CI ? ['dot', 'github-actions'] : ['default'],
     coverage: {
       provider: 'v8',
