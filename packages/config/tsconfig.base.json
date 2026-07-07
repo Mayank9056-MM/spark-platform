@@ -30,7 +30,6 @@
     "allowJs": false,
     "checkJs": false,
     "incremental": true,
-    "baseUrl": ".",
 
     "useUnknownInCatchVariables": true,
     "allowUnusedLabels": false,
