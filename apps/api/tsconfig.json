@@ -4,22 +4,20 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
+
     "rootDir": "./src",
     "outDir": "./dist",
     "noEmit": false,
     "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+
     "types": ["node"],
+
     "paths": {
-      "@/*": ["./src/*"],
-      "@spark/database": ["../../packages/database/src"],
-      "@spark/database/*": ["../../packages/database/src/*"],
-      "@spark/types": ["../../packages/types/src"],
-      "@spark/types/*": ["../../packages/types/src/*"],
-      "@spark/validation": ["../../packages/validation/src"],
-      "@spark/validation/*": ["../../packages/validation/src/*"],
-      "@spark/shared": ["../../packages/shared/src"],
-      "@spark/shared/*": ["../../packages/shared/src/*"]
+      "@/*": ["./src/*"]
     },
+
     "tsBuildInfoFile": "./dist/.tsbuildinfo"
   },
   "include": ["src/**/*.ts"],
