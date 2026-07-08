@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ── Starter models — expand per your RBAC design as modules land ──
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  firstName String
+  lastName  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roleAssignments RoleAssignment[]
+
+  @@map("users")
+}
+
+enum Role {
+  STUDENT
+  CR
+  LR
+  FACULTY
+  CLASS_TEACHER
+  HOD
+  ACCOUNTS
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum ScopeType {
+  COLLEGE
+  DEPARTMENT
+  DIVISION
+}
+
+model RoleAssignment {
+  id         String    @id @default(uuid())
+  userId     String
+  role       Role
+  scopeType  ScopeType
+  scopeId    String?
+  validFrom  DateTime  @default(now())
+  validUntil DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([role, scopeType, scopeId])
+  @@map("role_assignments")
+}

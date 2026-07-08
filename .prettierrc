@@ -9,7 +9,7 @@
   "bracketSpacing": true,
   "bracketSameLine": false,
   "endOfLine": "lf",
-  "plugins": ["prettier-plugin-tailwindcss"],
+  "plugins": ["prettier-plugin-tailwindcss","prettier-plugin-prisma"],
   "overrides": [
     {
       "files": "*.json",
