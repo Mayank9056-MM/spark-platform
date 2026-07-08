@@ -17,7 +17,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "clean": "turbo run clean && rm -rf node_modules .turbo",
-    "prepare": "husky"
+    "prepare": "husky",
+    "docker:up": "docker compose -f infrastructure/docker-compose.dev.yml up -d",
+    "docker:down": "docker compose -f infrastructure/docker-compose.dev.yml down",
+    "db:migrate": "pnpm --filter @spark/database exec prisma migrate dev",
+    "db:studio": "pnpm --filter @spark/database exec prisma studio"
   },
   "repository": {
     "type": "git",
@@ -41,6 +45,7 @@
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
     "prettier": "^3.9.4",
+    "prettier-plugin-prisma": "^5.0.0",
     "prettier-plugin-tailwindcss": "^0.8.0",
     "turbo": "^2.10.3",
     "typescript": "^6.0.3",
