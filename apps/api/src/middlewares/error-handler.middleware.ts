@@ -31,7 +31,7 @@ export function errorLoggerMiddleware(
 
   const meta = {
     ...ctx,
-    err: serializeError(err),
+    err: serializeError(apiErr),
     method: req.method,
     path: req.path,
     statusCode: apiErr.statusCode,
@@ -44,7 +44,7 @@ export function errorLoggerMiddleware(
     httpLogger.error('Request error (unhandled)', meta);
   }
 
-  next(err);
+  next(apiErr);
 }
 
 export function errorResponderMiddleware(

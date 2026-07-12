@@ -21,8 +21,9 @@ function isPrismaKnownRequestError(err: unknown): err is PrismaKnownRequestError
     typeof err === 'object' &&
     err !== null &&
     'name' in err &&
-    err.name === 'PrismaClientKnownRequestError' &&
-    'code' in err
+    (err as { name?: unknown }).name === 'PrismaClientKnownRequestError' &&
+    'code' in err &&
+    typeof (err as { code?: unknown }).code === 'string'
   );
 }
 
@@ -31,7 +32,7 @@ function isPrismaValidationError(err: unknown): err is PrismaValidationErrorShap
     typeof err === 'object' &&
     err !== null &&
     'name' in err &&
-    err.name === 'PrismaClientValidationError'
+    (err as { name?: unknown }).name === 'PrismaClientValidationError'
   );
 }
 
@@ -40,7 +41,7 @@ function isPrismaInitError(err: unknown): err is PrismaInitErrorShape {
     typeof err === 'object' &&
     err !== null &&
     'name' in err &&
-    err.name === 'PrismaClientInitializationError'
+    (err as { name?: unknown }).name === 'PrismaClientInitializationError'
   );
 }
 
@@ -85,9 +86,15 @@ export function mapPrismaError(err: unknown): ApiError {
   return ApiError.internal('An unexpected error occurred.', ErrorCode.INTERNAL_ERROR);
 }
 
+function hasTarget(meta: unknown): meta is { target: string[] } {
+  return (
+    typeof meta === 'object' && meta !== null && 'target' in meta && Array.isArray(meta.target)
+  );
+}
+
 function extractTargetFields(meta: unknown): string {
-  if (meta !== null && typeof meta === 'object' && 'target' in meta && Array.isArray(meta.target)) {
-    return (meta as { target: string[] }).target.join(', ');
+  if (hasTarget(meta)) {
+    return meta.target.join(', ');
   }
   return 'field';
 }
