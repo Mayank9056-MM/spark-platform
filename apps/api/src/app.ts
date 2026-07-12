@@ -9,7 +9,7 @@ import { env } from './config/env.js';
 import {
   errorLoggerMiddleware,
   errorResponderMiddleware,
-} from './middlewares/error-logger.middleware.js';
+} from './middlewares/error-handler.middleware.js';
 import { rateLimiter } from './middlewares/rate-limit.middleware.js';
 import { requestLoggerMiddleware } from './middlewares/request-logger.middleware.js';
 
