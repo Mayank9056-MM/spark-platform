@@ -7,52 +7,255 @@ datasource db {
   provider = "postgresql"
 }
 
-// ── Starter models — expand per your RBAC design as modules land ──
+// TENANCY
 
-model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  firstName String
-  lastName  String
-  isActive  Boolean  @default(true)
+model Organization {
+  id   String @id @default(uuid())
+  name String
+  slug String @unique
+
+  users     User[]
+  roles     Role[]
+  positions Position[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  roleAssignments RoleAssignment[]
+  @@map("organizations")
+}
 
+// CORE IDENTITY
+
+enum UserStatus {
+  PENDING_ACTIVATION // created by Admin, password not yet set
+  ACTIVE // normal active user
+  SUSPENDED // human/admin decision - diciplinary, investigation
+  LOCKED // system decision - failed-login threshold or anomaly
+  DEACTIVATED // left the institution - fully reversible, PII intact
+  ARCHIVED // terminal - invite expired unused, or GDPR erasure fulfilled
+}
+
+model User {
+  id             String     @id @default(uuid())
+  organizationId String
+  email          String
+  passwordHash   String? // null until user sets password
+  firstName      String
+  middleName     String?
+  lastName       String
+  status         UserStatus @default(PENDING_ACTIVATION)
+  avatarUrl      String?
+
+  failedLoginAttempts  Int       @default(0)
+  lockedUntil          DateTime? // null + LOCKED = requires manual unlock by Admin
+  lastLoginAt          DateTime? // null = never logged in
+  deletedAt            DateTime? // soft delete marker
+  lastPasswordChangeAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  // Roles held by this user, and roles granted to other users by this user
+  roleAssignments      RoleAssignment[]     @relation("UserRoleAssignments")
+  grantedAssignments   RoleAssignment[]     @relation("GrantedRoleAssignments")
+  sessions             Session[]
+  verificationTokens   VerificationToken[]
+  positionAssignments  PositionAssignment[] @relation("UserPositionAssignments")
+  assignedPositions    PositionAssignment[] @relation("GrantedPositionAssignments")
+  PositionAssignment   PositionAssignment?  @relation(fields: [positionAssignmentId], references: [id])
+  positionAssignmentId String?
+
+  // Email is unique PER ORGANIZATION, not globally unique. This allows multiple orginazations to have the same email address for different users.
+  @@unique([organizationId, email])
+  @@index([organizationId, status])
+  @@index([organizationId, lastLoginAt])
   @@map("users")
 }
 
-enum Role {
-  STUDENT
-  CR
-  LR
-  FACULTY
-  CLASS_TEACHER
-  HOD
-  ACCOUNTS
-  ADMIN
-  SUPER_ADMIN
+// Roles & Permissions
+
+model Role {
+  id              String  @id @default(uuid())
+  organizationId  String
+  key             String
+  displayName     String
+  isSystemDefined Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  rolePermissions RolePermission[]
+  roleAssignments RoleAssignment[]
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
+  @@map("roles")
+}
+
+model Permission {
+  id          String @id @default(uuid())
+  key         String @unique
+  displayName String
+  description String
+
+  createdAt DateTime @default(now())
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  createdAt DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
 }
 
 enum ScopeType {
-  COLLEGE
+  ORGANIZATION
   DEPARTMENT
   DIVISION
 }
 
 model RoleAssignment {
-  id         String    @id @default(uuid())
-  userId     String
-  role       Role
-  scopeType  ScopeType
-  scopeId    String?
+  id             String    @id @default(uuid())
+  userId         String
+  organizationId String
+  roleId         String
+  scopeType      ScopeType
+  scopeId        String?
+
   validFrom  DateTime  @default(now())
   validUntil DateTime?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantedByUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User  @relation("UserRoleAssignments", fields: [userId], references: [id], onDelete: Cascade)
+  role      Role  @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  grantedBy User? @relation("GrantedRoleAssignments", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([roleId, scopeType, scopeId])
+  @@index([userId, validUntil])
+  @@map("role_assignments")
+}
+
+model Position {
+  id             String @id @default(uuid())
+  organizationId String
+  title          String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization        Organization         @relation(fields: [organizationId], references: [id])
+  positionAssignments PositionAssignment[]
+
+  @@unique([organizationId, title])
+  @@index([organizationId])
+  @@map("positions")
+}
+
+model PositionAssignment {
+  id         String    @id @default(uuid())
+  userId     String
+  positionId String
+  scopeType  ScopeType
+  scopeId    String?
+
+  validFrom  DateTime  @default(now())
+  validUntil DateTime?
+
+  assignedByUserId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user       User     @relation("UserPositionAssignments", fields: [userId], references: [id], onDelete: Cascade)
+  position   Position @relation(fields: [positionId], references: [id], onDelete: Restrict)
+  assignedBy User?    @relation("GrantedPositionAssignments", fields: [assignedByUserId], references: [id], onDelete: SetNull)
+  users      User[]
 
   @@index([userId])
-  @@index([role, scopeType, scopeId])
-  @@map("role_assignments")
+  @@index([positionId, scopeType, scopeId])
+  @@map("position_assignments")
+}
+
+// SESSIONS & REFRESH TOKENS
+
+model Session {
+  id         String  @id @default(uuid())
+  userId     String
+  userAgent  String?
+  ipAddress  String?
+  location   String?
+  deviceName String?
+
+  lastActivityAt DateTime  @default(now())
+  revokedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  @@index([userId, revokedAt])
+  @@map("sessions")
+}
+
+model RefreshToken {
+  id        String @id @default(uuid())
+  sessionId String
+  tokenHash String @unique
+
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, revokedAt])
+  @@map("refresh_tokens")
+}
+
+// VERIFICATION TOKENS
+
+enum VerificationPurpose {
+  ACCOUNT_ACTIVATION
+  INVITE_USER
+  PASSWORD_RESET
+  EMAIL_CHANGE
+}
+
+model VerificationToken {
+  id        String              @id @default(uuid())
+  userId    String
+  purpose   VerificationPurpose
+  tokenHash String              @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@map("verification_tokens")
 }
