@@ -7,39 +7,64 @@ datasource db {
   provider = "postgresql"
 }
 
-// TENANCY
+// DOMAIN 1 — IDENTITY (Tenancy, Users, RBAC, Sessions, Tokens)
+// Position/PositionAssignment intentionally removed for MVP.
+
+enum OrganizationStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
 
 model Organization {
-  id   String @id @default(uuid())
-  name String
-  slug String @unique
+  id     String             @id @default(uuid())
+  name   String
+  slug   String             @unique
+  status OrganizationStatus @default(ACTIVE)
 
-  users     User[]
-  roles     Role[]
-  positions Position[]
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  users              User[]
+  roles              Role[]
+  departments        Department[]
+  academicYears      AcademicYear[]
+  studentEnrollments StudentEnrollment[]
+  promotionBatches   PromotionBatch[]
+  notices            Notice[]
+  notifications      Notification[]
+  calendarEvents     CalendarEvent[]
+  auditLogs          AuditLog[]
+  settings           OrganizationSetting[]
+  subjects           Subject[]
+  rooms              Room[]
+  timeSlots          TimeSlot[]
+  documents          Document[]
+  admissions         Admission[]
+  subjectOfferings   SubjectOffering[]
+  roleAssignments    RoleAssignment[]
+  programs           Program[]
+  divisions          Division[]
 
+  @@index([status])
   @@map("organizations")
 }
 
-// CORE IDENTITY
-
 enum UserStatus {
-  PENDING_ACTIVATION // created by Admin, password not yet set
-  ACTIVE // normal active user
-  SUSPENDED // human/admin decision - diciplinary, investigation
-  LOCKED // system decision - failed-login threshold or anomaly
-  DEACTIVATED // left the institution - fully reversible, PII intact
-  ARCHIVED // terminal - invite expired unused, or GDPR erasure fulfilled
+  PENDING_ACTIVATION
+  ACTIVE
+  SUSPENDED
+  LOCKED
+  DEACTIVATED
+  ARCHIVED
 }
 
 model User {
   id             String     @id @default(uuid())
   organizationId String
   email          String
-  passwordHash   String? // null until user sets password
+  passwordHash   String?
   firstName      String
   middleName     String?
   lastName       String
@@ -47,9 +72,9 @@ model User {
   avatarUrl      String?
 
   failedLoginAttempts  Int       @default(0)
-  lockedUntil          DateTime? // null + LOCKED = requires manual unlock by Admin
-  lastLoginAt          DateTime? // null = never logged in
-  deletedAt            DateTime? // soft delete marker
+  lockedUntil          DateTime?
+  lastLoginAt          DateTime?
+  deletedAt            DateTime?
   lastPasswordChangeAt DateTime?
 
   createdAt DateTime @default(now())
@@ -57,24 +82,33 @@ model User {
 
   organization Organization @relation(fields: [organizationId], references: [id])
 
-  // Roles held by this user, and roles granted to other users by this user
-  roleAssignments      RoleAssignment[]     @relation("UserRoleAssignments")
-  grantedAssignments   RoleAssignment[]     @relation("GrantedRoleAssignments")
-  sessions             Session[]
-  verificationTokens   VerificationToken[]
-  positionAssignments  PositionAssignment[] @relation("UserPositionAssignments")
-  assignedPositions    PositionAssignment[] @relation("GrantedPositionAssignments")
-  PositionAssignment   PositionAssignment?  @relation(fields: [positionAssignmentId], references: [id])
-  positionAssignmentId String?
+  roleAssignments    RoleAssignment[]    @relation("UserRoleAssignments")
+  grantedAssignments RoleAssignment[]    @relation("GrantedRoleAssignments")
+  sessions           Session[]
+  verificationTokens VerificationToken[]
 
-  // Email is unique PER ORGANIZATION, not globally unique. This allows multiple orginazations to have the same email address for different users.
+  admission             Admission?              @relation("AdmittedStudent")
+  admissionsProcessed   Admission[]             @relation("AdmittedBy")
+  studentEnrollments    StudentEnrollment[]
+  promotionBatches      PromotionBatch[]
+  promotionDecisions    PromotionDecision[]
+  facultyAssignments    FacultyAssignment[]
+  attendanceSessions    AttendanceSession[]
+  attendanceRecords     AttendanceRecord[]
+  documentsUploaded     Document[]
+  studyMaterials        StudyMaterial[]
+  assignmentsCreated    Assignment[]
+  submissionsGraded     AssignmentSubmission[]
+  noticesCreated        Notice[]
+  calendarEventsCreated CalendarEvent[]
+  auditLogEntries       AuditLog[]
+  notificationInbox     NotificationRecipient[]
+
   @@unique([organizationId, email])
   @@index([organizationId, status])
   @@index([organizationId, lastLoginAt])
   @@map("users")
 }
-
-// Roles & Permissions
 
 model Role {
   id              String  @id @default(uuid())
@@ -83,8 +117,9 @@ model Role {
   displayName     String
   isSystemDefined Boolean @default(false)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   organization    Organization     @relation(fields: [organizationId], references: [id])
   rolePermissions RolePermission[]
@@ -131,7 +166,8 @@ enum ScopeType {
 model RoleAssignment {
   id             String    @id @default(uuid())
   userId         String
-  organizationId String
+  organizationId String // denormalized from User.organizationId — enables
+  // tenant-scoped queries/future partitioning without a join at scale
   roleId         String
   scopeType      ScopeType
   scopeId        String?
@@ -144,58 +180,16 @@ model RoleAssignment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user      User  @relation("UserRoleAssignments", fields: [userId], references: [id], onDelete: Cascade)
-  role      Role  @relation(fields: [roleId], references: [id], onDelete: Restrict)
-  grantedBy User? @relation("GrantedRoleAssignments", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+  user         User         @relation("UserRoleAssignments", fields: [userId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  grantedBy    User?        @relation("GrantedRoleAssignments", fields: [grantedByUserId], references: [id], onDelete: SetNull)
+  organization Organization @relation(fields: [organizationId], references: [id])
 
   @@index([organizationId])
   @@index([roleId, scopeType, scopeId])
   @@index([userId, validUntil])
   @@map("role_assignments")
 }
-
-model Position {
-  id             String @id @default(uuid())
-  organizationId String
-  title          String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  organization        Organization         @relation(fields: [organizationId], references: [id])
-  positionAssignments PositionAssignment[]
-
-  @@unique([organizationId, title])
-  @@index([organizationId])
-  @@map("positions")
-}
-
-model PositionAssignment {
-  id         String    @id @default(uuid())
-  userId     String
-  positionId String
-  scopeType  ScopeType
-  scopeId    String?
-
-  validFrom  DateTime  @default(now())
-  validUntil DateTime?
-
-  assignedByUserId String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user       User     @relation("UserPositionAssignments", fields: [userId], references: [id], onDelete: Cascade)
-  position   Position @relation(fields: [positionId], references: [id], onDelete: Restrict)
-  assignedBy User?    @relation("GrantedPositionAssignments", fields: [assignedByUserId], references: [id], onDelete: SetNull)
-  users      User[]
-
-  @@index([userId])
-  @@index([positionId, scopeType, scopeId])
-  @@map("position_assignments")
-}
-
-// SESSIONS & REFRESH TOKENS
 
 model Session {
   id         String  @id @default(uuid())
@@ -215,6 +209,7 @@ model Session {
   refreshTokens RefreshToken[]
 
   @@index([userId, revokedAt])
+  @@index([userId, expiresAt])
   @@map("sessions")
 }
 
@@ -234,8 +229,6 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-// VERIFICATION TOKENS
-
 enum VerificationPurpose {
   ACCOUNT_ACTIVATION
   INVITE_USER
@@ -250,7 +243,8 @@ model VerificationToken {
   tokenHash String              @unique
   expiresAt DateTime
   usedAt    DateTime?
-  metadata  Json?
+  metadata  Json? // controlled exception to normalization — e.g. holds the
+  // pending new email for EMAIL_CHANGE until the token is consumed
 
   createdAt DateTime @default(now())
 
@@ -258,4 +252,936 @@ model VerificationToken {
 
   @@index([userId, purpose])
   @@map("verification_tokens")
+}
+
+// DOMAIN 2 — ACADEMIC STRUCTURE
+
+model Department {
+  id             String @id @default(uuid())
+  organizationId String
+  name           String
+  code           String
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  programs     Program[]
+  divisions    Division[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@map("departments")
+}
+
+model Program {
+  id             String @id @default(uuid())
+  organizationId String // denormalized from Department.organizationId — same
+  // pattern/justification as RoleAssignment.organizationId
+  departmentId   String
+  name           String
+  code           String
+  durationYears  Int
+  totalSemesters Int
+
+  department         Department          @relation(fields: [departmentId], references: [id])
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  curriculumVersions CurriculumVersion[]
+  divisions          Division[]
+  studentEnrollments StudentEnrollment[]
+
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  admissions Admission[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
+  @@index([departmentId])
+  @@map("programs")
+}
+
+enum CurriculumStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
+model CurriculumVersion {
+  id        String           @id @default(uuid())
+  programId String
+  label     String
+  status    CurriculumStatus @default(DRAFT)
+
+  program            Program             @relation(fields: [programId], references: [id])
+  semesterCatalogs   SemesterCatalog[]
+  studentEnrollments StudentEnrollment[]
+
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  admissions Admission[]
+
+  @@unique([programId, label])
+  @@index([programId, status])
+  @@map("curriculum_versions")
+}
+
+model SemesterCatalog {
+  id                  String @id @default(uuid())
+  curriculumVersionId String
+  number              Int
+
+  curriculumVersion   CurriculumVersion    @relation(fields: [curriculumVersionId], references: [id])
+  semesterEnrollments SemesterEnrollment[]
+  subjects            Subject[]
+  electiveGroups      ElectiveGroup[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([curriculumVersionId, number])
+  @@map("semester_catalogs")
+}
+
+model AcademicYear {
+  id             String   @id @default(uuid())
+  organizationId String
+  label          String
+  startDate      DateTime
+  endDate        DateTime
+  isActive       Boolean  @default(false)
+  // Business rule (app-layer enforced, not a DB constraint): at most one
+  // AcademicYear per organization should have isActive = true at a time.
+
+  organization        Organization         @relation(fields: [organizationId], references: [id])
+  divisions           Division[]
+  semesterEnrollments SemesterEnrollment[]
+  promotionBatches    PromotionBatch[]
+  subjectOfferings    SubjectOffering[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, label])
+  @@index([organizationId, isActive])
+  @@map("academic_years")
+}
+
+model Division {
+  id             String @id @default(uuid())
+  organizationId String
+  programId      String
+  academicYearId String
+  departmentId   String
+  name           String // "A", "B"
+
+  program      Program      @relation(fields: [programId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  department   Department   @relation(fields: [departmentId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  semesterEnrollments SemesterEnrollment[]
+  promotionBatches    PromotionBatch[]
+  subjectOfferings    SubjectOffering[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([programId, academicYearId, name])
+  @@index([organizationId])
+  @@index([academicYearId])
+  @@index([departmentId])
+  @@map("divisions")
+}
+
+// DOMAIN 3 — STUDENT LIFECYCLE (Admission → Enrollment → Promotion)
+
+enum AdmissionType {
+  REGULAR
+  LATERAL_ENTRY
+  MANAGEMENT_QUOTA
+  GOVERNMENT_QUOTA
+}
+
+enum AdmissionStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+// Admission happens ONCE and is never StudentEnrollment — it is the
+// historical record of how a student entered the institution, kept
+// permanently distinct from their ongoing academic lifecycle.
+model Admission {
+  id                  String          @id @default(uuid())
+  organizationId      String
+  userId              String          @unique
+  admissionNumber     String
+  admissionDate       DateTime
+  admissionType       AdmissionType
+  quota               String?
+  status              AdmissionStatus @default(CONFIRMED)
+  admittedByUserId    String
+  initialProgramId    String
+  initialCurriculumId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user              User              @relation("AdmittedStudent", fields: [userId], references: [id])
+  admittedBy        User              @relation("AdmittedBy", fields: [admittedByUserId], references: [id])
+  initialProgram    Program           @relation(fields: [initialProgramId], references: [id])
+  initialCurriculum CurriculumVersion @relation(fields: [initialCurriculumId], references: [id])
+  organization      Organization      @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, admissionNumber])
+  @@index([organizationId])
+  @@map("admissions")
+}
+
+enum EnrollmentType {
+  REGULAR
+  LATERAL_ENTRY
+  READMISSION
+}
+
+enum StudentLifecycleStatus {
+  ACTIVE
+  ON_GAP_YEAR
+  WITHDRAWN
+  DISCONTINUED
+  GRADUATED
+  ALUMNI
+}
+
+model StudentEnrollment {
+  id                  String                 @id @default(uuid())
+  organizationId      String
+  userId              String
+  programId           String
+  curriculumVersionId String // locked at admission time; a later curriculum
+  // revision does NOT retroactively change this student's syllabus
+  enrollmentType      EnrollmentType
+  rollNumber          String
+  admissionDate       DateTime
+  status              StudentLifecycleStatus @default(ACTIVE)
+  statusReason        String?
+  statusChangedAt     DateTime?
+
+  organization        Organization         @relation(fields: [organizationId], references: [id])
+  user                User                 @relation(fields: [userId], references: [id])
+  program             Program              @relation(fields: [programId], references: [id])
+  curriculumVersion   CurriculumVersion    @relation(fields: [curriculumVersionId], references: [id])
+  semesterEnrollments SemesterEnrollment[]
+  promotionDecisions  PromotionDecision[]
+  // Note: elective selections relate to SemesterEnrollment, not directly
+  // here — see StudentElectiveSelection's comment.
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([organizationId, rollNumber])
+  @@index([userId])
+  @@index([programId, status])
+  @@map("student_enrollments")
+}
+
+enum SemesterEnrollmentStatus {
+  IN_PROGRESS
+  PROMOTED
+  REPEATED
+  DETAINED
+  WITHDRAWN
+  DISCONTINUED
+  GRADUATED
+}
+
+model SemesterEnrollment {
+  id                  String                   @id @default(uuid())
+  studentEnrollmentId String
+  semesterCatalogId   String // WHICH curriculum semester (e.g. Semester 3 of IT-2024)
+  academicYearId      String // WHICH real term this attempt happened in
+  divisionId          String
+  attemptNumber       Int                      @default(1) // 2nd time = a repeat
+  status              SemesterEnrollmentStatus @default(IN_PROGRESS)
+
+  studentEnrollment StudentEnrollment @relation(fields: [studentEnrollmentId], references: [id], onDelete: Cascade)
+  semesterCatalog   SemesterCatalog   @relation(fields: [semesterCatalogId], references: [id])
+  academicYear      AcademicYear      @relation(fields: [academicYearId], references: [id])
+  division          Division          @relation(fields: [divisionId], references: [id])
+
+  openedByDecision      PromotionDecision?         @relation("DecisionOpensEnrollment")
+  attendanceRecords     AttendanceRecord[]
+  assignmentSubmissions AssignmentSubmission[]
+  electiveSelections    StudentElectiveSelection[]
+
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  promotionDecisions PromotionDecision[] @relation("DecisionClosesEnrollment")
+
+  @@unique([studentEnrollmentId, semesterCatalogId, attemptNumber])
+  @@index([divisionId, status])
+  @@index([academicYearId, status])
+  @@map("semester_enrollments")
+}
+
+enum PromotionBatchStatus {
+  DRAFT
+  FINALIZED
+}
+
+model PromotionBatch {
+  id                String               @id @default(uuid())
+  organizationId    String
+  divisionId        String
+  academicYearId    String
+  initiatedByUserId String
+  status            PromotionBatchStatus @default(DRAFT)
+  finalizedAt       DateTime?
+
+  organization Organization        @relation(fields: [organizationId], references: [id])
+  division     Division            @relation(fields: [divisionId], references: [id])
+  academicYear AcademicYear        @relation(fields: [academicYearId], references: [id])
+  initiatedBy  User                @relation(fields: [initiatedByUserId], references: [id])
+  decisions    PromotionDecision[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([divisionId, status])
+  @@map("promotion_batches")
+}
+
+enum PromotionOutcome {
+  PROMOTE
+  REPEAT
+  WITHDRAW
+  DISCONTINUE
+  GRADUATE
+}
+
+model PromotionDecision {
+  id                       String           @id @default(uuid())
+  promotionBatchId         String
+  studentEnrollmentId      String
+  fromSemesterEnrollmentId String           @unique
+  toSemesterEnrollmentId   String?          @unique
+  outcome                  PromotionOutcome
+  remarks                  String?
+  decidedByUserId          String
+  decidedAt                DateTime         @default(now())
+
+  createdAt DateTime @default(now())
+  // Deliberately no updatedAt — a promotion decision is an immutable audit
+  // record once made; it should never be edited after the fact.
+
+  promotionBatch         PromotionBatch      @relation(fields: [promotionBatchId], references: [id], onDelete: Cascade)
+  studentEnrollment      StudentEnrollment   @relation(fields: [studentEnrollmentId], references: [id])
+  fromSemesterEnrollment SemesterEnrollment  @relation("DecisionClosesEnrollment", fields: [fromSemesterEnrollmentId], references: [id])
+  toSemesterEnrollment   SemesterEnrollment? @relation("DecisionOpensEnrollment", fields: [toSemesterEnrollmentId], references: [id])
+  decidedBy              User                @relation(fields: [decidedByUserId], references: [id])
+
+  @@unique([promotionBatchId, studentEnrollmentId])
+  @@index([studentEnrollmentId])
+  @@map("promotion_decisions")
+}
+
+// DOMAIN 4 — CURRICULUM (Subjects, Components, Electives)
+
+enum SubjectComponentType {
+  THEORY
+  PRACTICAL
+  TUTORIAL
+  PROJECT
+}
+
+model Subject {
+  id                String  @id @default(uuid())
+  organizationId    String
+  semesterCatalogId String
+  electiveGroupId   String? // null for core subjects
+  code              String
+  name              String
+  isElective        Boolean @default(false)
+
+  semesterCatalog    SemesterCatalog            @relation(fields: [semesterCatalogId], references: [id])
+  electiveGroup      ElectiveGroup?             @relation(fields: [electiveGroupId], references: [id])
+  components         SubjectComponent[]
+  offerings          SubjectOffering[]
+  electiveSelections StudentElectiveSelection[]
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([semesterCatalogId, code])
+  @@index([organizationId])
+  @@map("subjects")
+}
+
+// Groups mutually-exclusive open/departmental electives together within one
+// semester catalog (e.g. "Open Elective Group 1": choose one of Python/AI/Cloud).
+// Replaces a bare `electiveGroup String?` label with a real, constraint-bearing
+// relation — a label alone can't enforce minSelect/maxSelect or list choices.
+model ElectiveGroup {
+  id                String @id @default(uuid())
+  semesterCatalogId String
+  name              String
+  minSelect         Int    @default(1)
+  maxSelect         Int    @default(1)
+
+  semesterCatalog SemesterCatalog            @relation(fields: [semesterCatalogId], references: [id])
+  subjects        Subject[]
+  selections      StudentElectiveSelection[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([semesterCatalogId, name])
+  @@map("elective_groups")
+}
+
+// KNOWN SIMPLIFICATION: the unique constraint below assumes exactly one
+// selection per group per enrollment — correct for the common maxSelect=1
+// case. If a group ever allows choosing 2+ electives (maxSelect > 1), this
+// constraint needs revisiting (drop the uniqueness, cap via app-layer count
+// check against ElectiveGroup.maxSelect instead).
+model StudentElectiveSelection {
+  id                   String @id @default(uuid())
+  semesterEnrollmentId String
+  electiveGroupId      String
+  subjectId            String
+
+  semesterEnrollment SemesterEnrollment @relation(fields: [semesterEnrollmentId], references: [id], onDelete: Cascade)
+  electiveGroup      ElectiveGroup      @relation(fields: [electiveGroupId], references: [id])
+  subject            Subject            @relation(fields: [subjectId], references: [id])
+  // Deliberately no direct relation to StudentEnrollment — SemesterEnrollment
+  // already implies which StudentEnrollment this selection belongs to; a
+  // second FK pointing at the same lineage would be redundant, not defense
+  // in depth.
+
+  createdAt DateTime @default(now())
+
+  @@unique([semesterEnrollmentId, electiveGroupId])
+  @@map("student_elective_selections")
+}
+
+// Why separate from Subject: THEORY and PRACTICAL halves can carry different
+// credit weights, different faculty, different timetable slots. Flattening
+// this onto Subject as boolean flags breaks the moment a subject has 2+ parts.
+model SubjectComponent {
+  id           String               @id @default(uuid())
+  subjectId    String
+  type         SubjectComponentType
+  credits      Int
+  hoursPerWeek Int
+
+  subject            Subject             @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  facultyAssignments FacultyAssignment[]
+  timetableEntries   Timetable[]
+  lectures           Lecture[]
+
+  @@unique([subjectId, type])
+  @@map("subject_components")
+}
+
+// The OFFERING concept — "Data Structures taught to Div A in 2025-26." One
+// row per subject+division+term regardless of how many components/faculty.
+model SubjectOffering {
+  id             String @id @default(uuid())
+  organizationId String
+  subjectId      String
+  divisionId     String
+  academicYearId String
+
+  subject            Subject             @relation(fields: [subjectId], references: [id])
+  division           Division            @relation(fields: [divisionId], references: [id])
+  academicYear       AcademicYear        @relation(fields: [academicYearId], references: [id])
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  facultyAssignments FacultyAssignment[]
+  timetableEntries   Timetable[]
+  lectures           Lecture[]
+  assignments        Assignment[]
+  studyMaterials     StudyMaterial[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([subjectId, divisionId, academicYearId])
+  @@index([divisionId, academicYearId])
+  @@map("subject_offerings")
+}
+
+// DOMAIN 5 — TEACHING (Faculty Assignment, Rooms, Timetable)
+
+// MVP simplification: one faculty per (offering, component) — no batch
+// dimension, so no reason for this to be a list.
+model FacultyAssignment {
+  id                 String @id @default(uuid())
+  subjectOfferingId  String
+  subjectComponentId String
+  facultyUserId      String
+
+  subjectOffering  SubjectOffering  @relation(fields: [subjectOfferingId], references: [id], onDelete: Cascade)
+  subjectComponent SubjectComponent @relation(fields: [subjectComponentId], references: [id])
+  faculty          User             @relation(fields: [facultyUserId], references: [id])
+
+  timetableEntries Timetable[]
+  lectures         Lecture[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([subjectOfferingId, subjectComponentId])
+  @@index([facultyUserId])
+  @@map("faculty_assignments")
+}
+
+enum RoomType {
+  LECTURE_HALL
+  LABORATORY
+  SEMINAR_HALL
+}
+
+model Room {
+  id             String   @id @default(uuid())
+  organizationId String
+  name           String
+  type           RoomType
+  capacity       Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  timetableEntries Timetable[]
+  lectures         Lecture[]
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, name])
+  @@map("rooms")
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+}
+
+model TimeSlot {
+  id             String    @id @default(uuid())
+  organizationId String
+  dayOfWeek      DayOfWeek
+  startTime      DateTime  @db.Time
+  endTime        DateTime  @db.Time
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  timetableEntries Timetable[]
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, dayOfWeek])
+  @@map("time_slots")
+}
+
+// The RECURRING pattern — "this slot happens every Tuesday 10-11am in Room
+// 204, for as long as effectiveTo is null."
+model Timetable {
+  id                  String    @id @default(uuid())
+  subjectOfferingId   String
+  subjectComponentId  String
+  facultyAssignmentId String
+  timeSlotId          String
+  roomId              String
+  effectiveFrom       DateTime  @default(now())
+  effectiveTo         DateTime? // set when faculty/room/slot changes mid-term;
+  // row is closed, never edited in place
+  isCancelled         Boolean   @default(false)
+
+  subjectOffering   SubjectOffering   @relation(fields: [subjectOfferingId], references: [id])
+  subjectComponent  SubjectComponent  @relation(fields: [subjectComponentId], references: [id])
+  facultyAssignment FacultyAssignment @relation(fields: [facultyAssignmentId], references: [id])
+  timeSlot          TimeSlot          @relation(fields: [timeSlotId], references: [id])
+  room              Room              @relation(fields: [roomId], references: [id])
+
+  lectures Lecture[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([timeSlotId, roomId])
+  @@index([subjectOfferingId])
+  @@map("timetables")
+}
+
+enum LectureStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+// The ACTUAL dated occurrence — where attendance attaches. Usually generated
+// from a Timetable row; timetableId is nullable so an ad-hoc extra class
+// doesn't need a fake recurring pattern behind it.
+model Lecture {
+  id                  String        @id @default(uuid())
+  timetableId         String?
+  subjectOfferingId   String
+  subjectComponentId  String
+  facultyAssignmentId String
+  roomId              String
+  scheduledDate       DateTime      @db.Date
+  startTime           DateTime      @db.Time
+  endTime             DateTime      @db.Time
+  status              LectureStatus @default(SCHEDULED)
+
+  timetable         Timetable?         @relation(fields: [timetableId], references: [id])
+  subjectOffering   SubjectOffering    @relation(fields: [subjectOfferingId], references: [id])
+  subjectComponent  SubjectComponent   @relation(fields: [subjectComponentId], references: [id])
+  facultyAssignment FacultyAssignment  @relation(fields: [facultyAssignmentId], references: [id])
+  room              Room               @relation(fields: [roomId], references: [id])
+  attendanceSession AttendanceSession?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([subjectOfferingId, scheduledDate, startTime])
+  @@index([facultyAssignmentId, scheduledDate])
+  @@map("lectures")
+}
+
+// DOMAIN 6 — ATTENDANCE
+
+enum AttendanceSessionStatus {
+  OPEN
+  LOCKED
+}
+
+// 1:1 with Lecture, deliberately — no batch dimension. The Lecture already
+// carries the division; this row just anchors AttendanceRecord rows.
+model AttendanceSession {
+  id            String                  @id @default(uuid())
+  lectureId     String                  @unique
+  takenByUserId String
+  status        AttendanceSessionStatus @default(OPEN)
+  lockedAt      DateTime?
+
+  lecture Lecture            @relation(fields: [lectureId], references: [id], onDelete: Cascade)
+  takenBy User               @relation(fields: [takenByUserId], references: [id])
+  records AttendanceRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("attendance_sessions")
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+model AttendanceRecord {
+  id                   String           @id @default(uuid())
+  attendanceSessionId  String
+  semesterEnrollmentId String // ties to the student's CURRENT term context,
+  // not the bare User — consistent with the catalog/offering split elsewhere
+  status               AttendanceStatus
+  markedByUserId       String
+  correctedAt          DateTime?
+  correctionReason     String?
+
+  attendanceSession  AttendanceSession  @relation(fields: [attendanceSessionId], references: [id], onDelete: Cascade)
+  semesterEnrollment SemesterEnrollment @relation(fields: [semesterEnrollmentId], references: [id])
+  markedBy           User               @relation(fields: [markedByUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([attendanceSessionId, semesterEnrollmentId])
+  @@index([semesterEnrollmentId, status])
+  @@map("attendance_records")
+}
+
+// DOMAIN 7 — ASSIGNMENTS & STUDY MATERIAL
+// Attachments deliberately do NOT get their own tables (no
+// AssignmentAttachment / StudyMaterialAttachment) — see Document below.
+
+model Assignment {
+  id                String   @id @default(uuid())
+  subjectOfferingId String
+  title             String
+  description       String
+  dueAt             DateTime
+  maxMarks          Int?
+  createdByUserId   String
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  subjectOffering SubjectOffering        @relation(fields: [subjectOfferingId], references: [id])
+  createdBy       User                   @relation(fields: [createdByUserId], references: [id])
+  submissions     AssignmentSubmission[]
+
+  @@index([subjectOfferingId])
+  @@map("assignments")
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  LATE
+  GRADED
+  RESUBMISSION_REQUESTED
+}
+
+model AssignmentSubmission {
+  id                   String           @id @default(uuid())
+  assignmentId         String
+  semesterEnrollmentId String // same "tie to term context, not bare User"
+  // convention as AttendanceRecord
+  status               SubmissionStatus @default(SUBMITTED)
+  submittedAt          DateTime         @default(now())
+  marksAwarded         Int?
+  feedback             String?
+  gradedByUserId       String?
+  gradedAt             DateTime?
+
+  assignment         Assignment         @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  semesterEnrollment SemesterEnrollment @relation(fields: [semesterEnrollmentId], references: [id])
+  gradedBy           User?              @relation(fields: [gradedByUserId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([assignmentId, semesterEnrollmentId])
+  @@index([semesterEnrollmentId])
+  @@map("assignment_submissions")
+}
+
+model StudyMaterial {
+  id                String  @id @default(uuid())
+  subjectOfferingId String
+  title             String
+  description       String?
+  uploadedByUserId  String
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  subjectOffering SubjectOffering @relation(fields: [subjectOfferingId], references: [id])
+  uploadedBy      User            @relation(fields: [uploadedByUserId], references: [id])
+
+  @@index([subjectOfferingId])
+  @@map("study_materials")
+}
+
+// DOMAIN 8 — COMMUNICATION (Notice, Notification, Calendar)
+
+model Notice {
+  id              String    @id @default(uuid())
+  organizationId  String
+  title           String
+  body            String
+  publishedAt     DateTime?
+  createdByUserId String
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  createdBy    User             @relation(fields: [createdByUserId], references: [id])
+  audiences    NoticeAudience[]
+
+  @@index([organizationId, publishedAt])
+  @@map("notices")
+}
+
+// Separate table, not a single scope pair on Notice, because one notice may
+// need to target MULTIPLE audiences at once (e.g. CS dept AND MECH dept
+// simultaneously) — a single scopeType/scopeId pair can't express that fan-out.
+model NoticeAudience {
+  id       String    @id @default(uuid())
+  noticeId String
+  scope    ScopeType
+  scopeId  String? // null when scope = ORGANIZATION
+
+  notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+
+  @@index([noticeId])
+  @@index([scope, scopeId])
+  @@map("notice_audiences")
+}
+
+enum NotificationType {
+  NOTICE_PUBLISHED
+  ASSIGNMENT_DUE
+  ATTENDANCE_LOW
+  GRADE_POSTED
+  ROLE_GRANTED
+  GENERIC
+}
+
+// Split from NotificationRecipient deliberately: a notice going to 500
+// students shouldn't duplicate title/body 500 times — one Notification row,
+// many per-user delivery/read-state rows.
+model Notification {
+  id             String           @id @default(uuid())
+  organizationId String
+  type           NotificationType
+  title          String
+  body           String
+  metadata       Json? // polymorphic reference payload — e.g. { assignmentId }
+
+  createdAt DateTime @default(now())
+
+  organization Organization            @relation(fields: [organizationId], references: [id])
+  recipients   NotificationRecipient[]
+
+  @@index([organizationId, type])
+  @@map("notifications")
+}
+
+model NotificationRecipient {
+  id             String    @id @default(uuid())
+  notificationId String
+  userId         String
+  deliveredAt    DateTime?
+  readAt         DateTime?
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId, readAt])
+  @@map("notification_recipients")
+}
+
+enum CalendarEventType {
+  HOLIDAY
+  EXAM
+  WORKSHOP
+  SEMINAR
+  PLACEMENT
+  TECH_FEST
+  SPORTS
+  MEETING
+  OTHER
+}
+
+model CalendarEvent {
+  id              String            @id @default(uuid())
+  organizationId  String
+  type            CalendarEventType
+  title           String
+  description     String?
+  startAt         DateTime
+  endAt           DateTime
+  scopeType       ScopeType         @default(ORGANIZATION) // reuses the
+  // existing RBAC/Notice scope enum rather than inventing a new one
+  scopeId         String?
+  createdByUserId String
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  createdBy    User         @relation(fields: [createdByUserId], references: [id])
+
+  @@index([organizationId, startAt])
+  @@index([scopeType, scopeId])
+  @@map("calendar_events")
+}
+
+// DOMAIN 9 — SYSTEM (Documents, Audit, Settings)
+
+enum DocumentOwnerType {
+  ASSIGNMENT
+  ASSIGNMENT_SUBMISSION
+  STUDY_MATERIAL
+  NOTICE
+}
+
+model Document {
+  id               String            @id @default(uuid())
+  organizationId   String
+  ownerType        DocumentOwnerType
+  ownerId          String
+  fileName         String
+  mimeType         String
+  sizeBytes        Int
+  storageKey       String // path/key in Cloudflare R2 / S3 — DB stores
+  // metadata only, actual bytes live in object storage
+  uploadedByUserId String
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  uploadedBy   User         @relation(fields: [uploadedByUserId], references: [id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, ownerType, ownerId])
+  @@map("documents")
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  ROLE_GRANTED
+  ROLE_REVOKED
+  PERMISSION_CHANGED
+  OTHER
+}
+
+model AuditLog {
+  id             String      @id @default(uuid())
+  organizationId String? // nullable — some actions are platform-level,
+  // outside any single tenant's context
+  actorUserId    String? // nullable — system-initiated actions have no human actor
+  action         AuditAction
+  entityType     String
+
+  entityId  String
+  oldValue  Json?
+  newValue  Json?
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  actor        User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, entityType, entityId])
+  @@index([actorUserId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model OrganizationSetting {
+  id             String @id @default(uuid())
+  organizationId String
+  key            String
+  value          Json // intentionally loose — supports any setting shape
+  // (string, number, boolean, nested object) without a migration per new key
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, key])
+  @@map("organization_settings")
 }
