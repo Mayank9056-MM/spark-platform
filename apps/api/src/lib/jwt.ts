@@ -14,7 +14,10 @@ export interface AccessTokenPayload {
 }
 
 export function signAccessToken(payload: AccessTokenPayload, ttlMs: number): string {
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: Math.floor(ttlMs / 1000) });
+  return jwt.sign(payload, env.JWT_SECRET, {
+    expiresIn: Math.floor(ttlMs / 1000),
+    algorithm: 'HS256',
+  });
 }
 
 export function verifyAccessToken(token: string): AccessTokenPayload {
