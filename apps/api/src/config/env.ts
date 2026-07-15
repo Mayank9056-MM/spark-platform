@@ -15,9 +15,13 @@ const envSchema = z.object({
   LOG_STDOUT_ONLY: z.coerce.boolean().default(false),
 
   // Argon
-  ARGON2_MEMORY_COST: z.coerce.number().default(19456),
-  ARGON2_TIME_COST: z.coerce.number().default(2),
-  ARGON2_PARALLELISM: z.coerce.number().default(1),
+  ARGON2_MEMORY_COST: z.coerce
+    .number()
+    .min(8 * 1024) // 8 MiB
+    .max(1014 * 1024) // 1 GiB
+    .default(19456), // 9 MiB
+  ARGON2_TIME_COST: z.coerce.number().min(1).max(10).default(2),
+  ARGON2_PARALLELISM: z.coerce.number().min(1).max(32).default(1),
 });
 
 export const env = envSchema.parse(process.env);
