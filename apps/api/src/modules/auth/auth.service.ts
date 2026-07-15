@@ -264,7 +264,7 @@ export class AuthService {
       userId,
       purpose: 'ACCOUNT_ACTIVATION',
       tokenHash: hashToken(rawToken),
-      expiresAt: new Date(Date.now() + AUTH_CONSTANTS.ACCESS_TOKEN_TTL_MS),
+      expiresAt: new Date(Date.now() + AUTH_CONSTANTS.ACTIVATION_TOKEN_TTL_MS),
     });
     authLogger.info('Activation token issued', { userId });
 
