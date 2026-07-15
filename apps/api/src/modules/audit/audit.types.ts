@@ -1,13 +1,16 @@
 import type { AuditAction, Prisma } from '@spark/database';
 
 export enum AuditEntityType {
-  USER = 'USER',
-  STUDENT = 'STUDENT',
-  FACULTY = 'FACULTY',
-  ATTENDANCE = 'ATTENDANCE',
-  ASSIGNMENT = 'ASSIGNMENT',
-  NOTICE = 'NOTICE',
-  SESSION = 'SESSION',
+  USER = 'User',
+  STUDENT = 'Student',
+  FACULTY = 'Faculty',
+  ATTENDANCE = 'Attendance',
+  ASSIGNMENT = 'Assignment',
+  NOTICE = 'Notice',
+  SESSION = 'Session',
+  ROLE = 'Role',
+  ROLE_ASSIGNMENT = 'RoleAssignment',
+  ORGANIZATION = 'Organization',
 }
 
 export interface RecordAuditInput {
