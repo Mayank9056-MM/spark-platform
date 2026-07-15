@@ -16,3 +16,5 @@ export const socketLogger = createChildLogger({ component: 'socket' });
 export const emailLogger = createChildLogger({ component: 'email' });
 export const httpLogger = createChildLogger({ component: 'http' });
 export const shutdownLogger = createChildLogger({ component: 'shutdown' });
+export const authLogger = createChildLogger({ component: 'auth' });
+export const auditLogger = createChildLogger({ component: 'audit' });
