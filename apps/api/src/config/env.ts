@@ -13,6 +13,11 @@ const envSchema = z.object({
   LOG_LEVEL: z.string().default('info'),
   LOG_DIR: z.string().default('logs'),
   LOG_STDOUT_ONLY: z.coerce.boolean().default(false),
+
+  // Argon
+  ARGON2_MEMORY_COST: z.coerce.number().default(19456),
+  ARGON2_TIME_COST: z.coerce.number().default(2),
+  ARGON2_PARALLELISM: z.coerce.number().default(1),
 });
 
 export const env = envSchema.parse(process.env);
