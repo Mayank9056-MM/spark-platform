@@ -250,6 +250,16 @@ export class AuthRepository {
       },
     });
   }
+
+  /**
+   * Unfiltered lookup — unlike findActiveSessionById, this returns a session
+   * even if already revoked/expired. Used specifically for audit-trail
+   * enrichment, where we need to know WHO a session belonged to even after
+   * it's no longer usable.
+   */
+  async findSessionById(sessionId: string): Promise<Session | null> {
+    return prisma.session.findUnique({ where: { id: sessionId } });
+  }
 }
 
 export const authRepository = new AuthRepository();

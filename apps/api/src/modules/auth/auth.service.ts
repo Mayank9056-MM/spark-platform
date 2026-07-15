@@ -29,8 +29,6 @@ export class AuthService {
     const allowedUser = await this.assertLoginAllowed(user);
 
     if (!allowedUser.passwordHash) {
-      // Should be unreachable given assertLoginAllowed — never trust that
-      // silently. Treat as invalid credentials rather than crashing.
       authLogger.error('Active user has no passwordHash — data integrity issue', {
         userId: allowedUser.id,
       });
@@ -260,6 +258,19 @@ export class AuthService {
 
   // Account activation
 
+  async issueActivationToken(userId: string): Promise<string> {
+    const rawToken = generateOpaqueToken();
+    await authRepository.createVerificationToken({
+      userId,
+      purpose: 'ACCOUNT_ACTIVATION',
+      tokenHash: hashToken(rawToken),
+      expiresAt: new Date(Date.now() + AUTH_CONSTANTS.ACTIVATION_TOKEN_TTL_MS),
+    });
+    authLogger.info('Activation token issued', { userId });
+
+    return rawToken;
+  }
+
   async activateAccount(rawToken: string, newPassword: string): Promise<void> {
     const tokenHash = hashToken(rawToken);
     const verificationToken =
@@ -294,10 +305,6 @@ export class AuthService {
   async requestPasswordReset(organizationId: string, email: string): Promise<void> {
     const user = await authRepository.findUserByOrgAndEmail(organizationId, email);
 
-    // Always behaves identically regardless of whether the user exists —
-    // the anti-enumeration rule from the architecture review. The caller
-    // gets the same "if this email exists, a reset link was sent" response
-    // no matter which branch executes below.
     if (user && user.status !== 'ARCHIVED') {
       const rawToken = generateOpaqueToken();
       await authRepository.createVerificationToken({

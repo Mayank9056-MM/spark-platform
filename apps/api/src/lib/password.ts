@@ -1,10 +1,12 @@
 import argon2 from 'argon2';
 
+import { env } from '@/config/env.js';
+
 const ARGON2_OPTIONS: argon2.Options = {
   type: argon2.argon2id,
-  memoryCost: 19456, // ~19 MB
-  timeCost: 2,
-  parallelism: 1,
+  memoryCost: env.ARGON2_MEMORY_COST,
+  timeCost: env.ARGON2_TIME_COST,
+  parallelism: env.ARGON2_PARALLELISM,
 };
 
 export async function hashPassword(plain: string): Promise<string> {
