@@ -14,7 +14,12 @@ export function validate(schema: ZodType, source: ValidationSource = 'body') {
     const result = schema.safeParse(input);
 
     if (!result.success) {
-      const message = result.error.issues.map((issue) => issue.message).join('; ');
+      const message = result.error.issues
+        .map((issue) => {
+          const path = issue.path.length > 0 ? `${issue.path.join('.')}: ` : '';
+          return `${path}${issue.message}`;
+        })
+        .join('; ');
       next(ApiError.badRequest(message, ErrorCode.VALIDATION_ERROR));
       return;
     }
