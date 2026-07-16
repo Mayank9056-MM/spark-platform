@@ -12,6 +12,7 @@ import {
 } from './middlewares/error-handler.middleware.js';
 import { rateLimiter } from './middlewares/rate-limit.middleware.js';
 import { requestLoggerMiddleware } from './middlewares/request-logger.middleware.js';
+import { authRouter } from './modules/auth/auth.routes.js';
 
 export function createServer(): Express {
   const app = express();
@@ -42,8 +43,7 @@ export function createServer(): Express {
 
   app.use(compression());
 
-  // TODO: mount feature routers here as modules/* are built
-  // app.use('/api/v1', apiRouter);
+  app.use('/api/v1', authRouter);
 
   app.use((_req, res) => {
     res.status(404).json({
