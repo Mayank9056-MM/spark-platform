@@ -43,7 +43,7 @@ export function createServer(): Express {
 
   app.use(compression());
 
-  app.use('/api/v1', authRouter);
+  app.use('/api/v1/auth', authRouter);
 
   app.use((_req, res) => {
     res.status(404).json({
