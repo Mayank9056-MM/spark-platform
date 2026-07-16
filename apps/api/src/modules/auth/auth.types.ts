@@ -46,9 +46,9 @@ export interface LoginResponseDTO {
 }
 
 export interface RequestMetadata {
-  ipAddress?: string;
-  userAgent?: string;
-  deviceName?: string;
+  ipAddress?: string | undefined;
+  userAgent?: string | undefined;
+  deviceName?: string | undefined;
 }
 
 export interface LoginParams {
