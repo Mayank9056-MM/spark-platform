@@ -18,3 +18,4 @@ export const httpLogger = createChildLogger({ component: 'http' });
 export const shutdownLogger = createChildLogger({ component: 'shutdown' });
 export const authLogger = createChildLogger({ component: 'auth' });
 export const auditLogger = createChildLogger({ component: 'audit' });
+export const userLogger = createChildLogger({ component: 'user' });
