@@ -13,6 +13,7 @@ import {
 import { rateLimiter } from './middlewares/rate-limit.middleware.js';
 import { requestLoggerMiddleware } from './middlewares/request-logger.middleware.js';
 import { authRouter } from './modules/auth/auth.routes.js';
+import { userRouter } from './modules/user/user.routes.js';
 
 export function createServer(): Express {
   const app = express();
@@ -44,6 +45,7 @@ export function createServer(): Express {
   app.use(compression());
 
   app.use('/api/v1/auth', authRouter);
+  app.use('/api/v1/users', userRouter);
 
   app.use((_req, res) => {
     res.status(404).json({
