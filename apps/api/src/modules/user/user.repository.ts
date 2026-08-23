@@ -1,5 +1,6 @@
-import type { Prisma, User } from '@spark/database/client';
+import type { Prisma, PrismaClient, User } from '@spark/database/client';
 
+import { normalizeEmail } from '../../lib/email.js';
 import { prisma } from '../../lib/prisma.js';
 
 import type {
@@ -10,12 +11,24 @@ import type {
   UpdateUserInput,
 } from './user.types.js';
 
+/**
+ * Every mutating method below takes a Prisma transaction client (`tx`) as
+ * an explicit parameter rather than closing over the module-level `prisma`
+ * singleton. This lets user.service.ts wrap create/update/archive/restore
+ * + their audit write in one `prisma.$transaction(...)` (Phase 21, Phase
+ * 10 "transactional auditing") — a repository method that always used the
+ * singleton client could never participate in a caller's transaction.
+ * Read-only methods (findById, existsByEmail, findMany) still default to
+ * the singleton since there's nothing to keep atomic with a read.
+ */
+type Db = PrismaClient | Prisma.TransactionClient;
+
 export class UserRepository {
-  async create(input: CreateUserInput): Promise<User> {
-    return prisma.user.create({
+  async create(tx: Db, input: CreateUserInput): Promise<User> {
+    return tx.user.create({
       data: {
         organizationId: input.organizationId,
-        email: input.email,
+        email: normalizeEmail(input.email),
         firstName: input.firstName,
         middleName: input.middleName ?? null,
         lastName: input.lastName,
@@ -40,14 +53,24 @@ export class UserRepository {
 
   async existsByEmail(organizationId: string, email: string): Promise<boolean> {
     const count = await prisma.user.count({
-      where: { organizationId, email: email.toLowerCase() },
+      where: { organizationId, email: normalizeEmail(email) },
     });
     return count > 0;
   }
 
-  async update(id: string, input: UpdateUserInput): Promise<User> {
-    return prisma.user.update({
-      where: { id },
+  /**
+   * `organizationId` + `id` together, resolved through the
+   * `users_organizationId_id_key` composite unique constraint — the same
+   * single atomic query the brief asks for (Phase 2), rather than a bare
+   * `where: { id }` that trusts an earlier, separate existence check. If a
+   * caller passes an organizationId/id pair that doesn't exist together
+   * (wrong tenant, wrong id, or both), Prisma throws P2025 — mapped to a
+   * clean 404 by the Prisma error mapper — instead of silently updating a
+   * row across a tenant boundary.
+   */
+  async update(tx: Db, organizationId: string, id: string, input: UpdateUserInput): Promise<User> {
+    return tx.user.update({
+      where: { organizationId_id: { organizationId, id } },
       data: {
         ...(input.firstName !== undefined && { firstName: input.firstName }),
         ...(input.middleName !== undefined && { middleName: input.middleName }),
@@ -64,17 +87,19 @@ export class UserRepository {
    * action (with a matching restore()) is the ordinary offboarding case
    * — deliberately using DEACTIVATED so restore() remains meaningful.
    * True ARCHIVED/erasure is a separate, not-yet-built endpoint.
+   *
+   * Same organizationId+id atomic-where reasoning as update() above.
    */
-  async archive(id: string): Promise<User> {
-    return prisma.user.update({
-      where: { id },
+  async archive(tx: Db, organizationId: string, id: string): Promise<User> {
+    return tx.user.update({
+      where: { organizationId_id: { organizationId, id } },
       data: { status: 'DEACTIVATED', deletedAt: new Date() },
     });
   }
 
-  async restore(id: string): Promise<User> {
-    return prisma.user.update({
-      where: { id },
+  async restore(tx: Db, organizationId: string, id: string): Promise<User> {
+    return tx.user.update({
+      where: { organizationId_id: { organizationId, id } },
       data: { status: 'ACTIVE', deletedAt: null },
     });
   }
