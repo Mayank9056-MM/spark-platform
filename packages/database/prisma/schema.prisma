@@ -344,29 +344,24 @@ enum CurriculumStatus {
 
 model CurriculumVersion {
   id             String           @id @default(uuid())
-  organizationId String // NEW — denormalized from Program.organizationId.
-  // Needed so SemesterCatalog (and everything under it: Subject,
-  // ElectiveGroup, SubjectOffering) can carry a composite FK back up the
-  // curriculum chain without an extra join at every level. This is the same
-  // "denormalize for tenant-consistency enforcement" pattern already used
-  // for Program — not a speculative addition.
+  organizationId String // denormalized from Program.organizationId — same
+  // pattern/justification as Program.organizationId.
   programId      String
   label          String
   status         CurriculumStatus @default(DRAFT)
 
-  program Program @relation(fields: [organizationId, programId], references: [organizationId, id])
+  organization Organization @relation(fields: [organizationId], references: [id])
+  program      Program      @relation(fields: [organizationId, programId], references: [organizationId, id])
 
   semesterCatalogs   SemesterCatalog[]
   studentEnrollments StudentEnrollment[]
 
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  admissions    Admission[]
-  organizations Organization[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  admissions Admission[]
 
   @@unique([programId, label])
-  @@unique([organizationId, id]) // composite-FK target for SemesterCatalog,
-  // Admission, StudentEnrollment
+  @@unique([organizationId, id])
   @@index([organizationId])
   @@index([programId, status])
   @@map("curriculum_versions")
@@ -374,22 +369,22 @@ model CurriculumVersion {
 
 model SemesterCatalog {
   id                  String @id @default(uuid())
-  organizationId      String // NEW — see CurriculumVersion.organizationId comment
+  organizationId      String // denormalized from CurriculumVersion.organizationId
   curriculumVersionId String
   number              Int
 
+  organization      Organization      @relation(fields: [organizationId], references: [id])
   curriculumVersion CurriculumVersion @relation(fields: [organizationId, curriculumVersionId], references: [organizationId, id])
 
   semesterEnrollments SemesterEnrollment[]
   subjects            Subject[]
   electiveGroups      ElectiveGroup[]
 
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  organizations Organization[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([curriculumVersionId, number])
-  @@unique([organizationId, id]) // composite-FK target for Subject, SemesterEnrollment
+  @@unique([organizationId, id])
   @@index([organizationId])
   @@map("semester_catalogs")
 }
@@ -1324,8 +1319,17 @@ enum AuditAction {
   CREATE
   UPDATE
   DELETE
+  ARCHIVE
+  RESTORE
   LOGIN
+  LOGIN_FAILED
   LOGOUT
+  LOGOUT_ALL_DEVICES
+  SESSION_REVOKED
+  ACCOUNT_ACTIVATED
+  PASSWORD_CHANGED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
   ROLE_GRANTED
   ROLE_REVOKED
   PERMISSION_CHANGED
@@ -1334,24 +1338,31 @@ enum AuditAction {
 
 model AuditLog {
   id             String      @id @default(uuid())
-  organizationId String? // nullable — some actions are platform-level,
-  // outside any single tenant's context
-  actorUserId    String? // nullable — system-initiated actions have no human actor
+  organizationId String?
+  actorUserId    String?
   action         AuditAction
   entityType     String
 
   entityId  String
   oldValue  Json?
   newValue  Json?
+  requestId String? // NEW — correlates an audit row back to the exact HTTP
+  // request that produced it (Phase 10). Populated automatically from the
+  // AsyncLocalStorage log context by auditService.record/recordTx; callers
+  // only need to pass it explicitly if recording outside a request (a job).
   ipAddress String?
   userAgent String?
   // Deliberately no updatedAt: append-only. oldValue/newValue must NEVER
   // contain passwordHash, refresh/session token values, or verification
   // token hashes — the audit-writing service is responsible for redacting
-  // these fields before serializing a diff, the DB cannot enforce field-
-  // level redaction. DB-level backstop: REVOKE UPDATE/DELETE on this table
-  // for the application's runtime role (migration.sql) — append-only is
-  // enforced by Postgres grants, not merely application discipline.
+  // these fields before serializing a diff. DB-level append-only enforcement
+  // (REVOKE UPDATE/DELETE for the app's runtime role) requires a separate
+  // migration/runtime-role from the migration/owner role — NOT YET
+  // CONFIGURED in this deployment (single dev role). See
+  // docs/architecture/production-deployment.md for the required production
+  // model. Until that separation exists, append-only is enforced only by
+  // the application never exposing an update/delete endpoint for this table
+  // — a real gap, not a solved one; do not claim otherwise.
 
   createdAt DateTime @default(now())
 
@@ -1359,6 +1370,8 @@ model AuditLog {
   actor        User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, entityType, entityId])
+  @@index([organizationId, createdAt])
+  @@index([organizationId, action, createdAt])
   @@index([actorUserId])
   @@index([createdAt])
   @@map("audit_logs")
