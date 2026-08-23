@@ -7,6 +7,9 @@ export interface LogMeta {
   sessionId?: string | undefined;
 
   userId?: string | undefined;
+  organizationId?: string | undefined; // NEW — tenant context, populated once
+  // loadOrganizationContext resolves it; merges into every log line for the
+  // remainder of the request via runWithContext (Phase 23).
   roleScope?: string | undefined; // SPARK-specific: which RoleAssignment scope was active
   ip?: string | undefined;
 
