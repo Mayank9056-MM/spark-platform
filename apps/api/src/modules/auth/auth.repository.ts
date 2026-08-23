@@ -7,6 +7,7 @@ import type {
 } from '@spark/database';
 import { Prisma } from '@spark/database';
 
+import { normalizeEmail } from '../../lib/email.js';
 import { prisma } from '../../lib/prisma.js';
 
 interface CreateSessionInput {
@@ -43,7 +44,7 @@ export class AuthRepository {
   // Users
 
   /**
-   * The login-path lookup. Deliberately does NOT filter by `status` here
+   * The login-path lookup. Deliberately does NOT filter by `status` here —
    * the service layer decides what to do with a SUSPENDED/LOCKED/ARCHIVED
    * user (different error messages, different logging), which means this
    * repository method's job is only "does this identity exist," not
@@ -53,7 +54,7 @@ export class AuthRepository {
     return prisma.user.findFirst({
       where: {
         organizationId,
-        email: email.toLowerCase(),
+        email: normalizeEmail(email),
         deletedAt: null,
       },
     });
@@ -215,7 +216,7 @@ export class AuthRepository {
    * call here either yields a genuinely consumable token or null, with no
    * ambiguity about which failure mode occurred (the service returns the
    * same generic error either way, per the timing/enumeration discipline
-   * established earlier).
+   * established elsewhere).
    */
   async findValidVerificationToken(
     tokenHash: string,
