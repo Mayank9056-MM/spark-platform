@@ -11,11 +11,46 @@ export interface RequestLoggerConfig {
   logIncoming?: boolean;
 }
 
-function extractIp(req: Request): string {
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0]?.trim() ?? 'unknown';
+// Request IDs are a caller-supplied, log-injected value — bound it hard.
+// A UUID is 36 chars; allow a little headroom for other reasonable ID
+// schemes (ULIDs, etc.) without opening the door to multi-KB header abuse
+// or control characters that could break structured log parsing.
+const MAX_REQUEST_ID_LENGTH = 64;
+const SAFE_REQUEST_ID_PATTERN = /^[a-zA-Z0-9._-]+$/;
+
+function isValidClientRequestId(value: string): boolean {
+  return (
+    value.length > 0 && value.length <= MAX_REQUEST_ID_LENGTH && SAFE_REQUEST_ID_PATTERN.test(value)
+  );
+}
+
+/**
+ * Resolves the request ID to use for this request: the client-supplied
+ * X-Request-ID if it passes the safety check above, otherwise a freshly
+ * generated UUID. Never trusts an unvalidated client value into logs,
+ * audit records, or the response header (Phase 14).
+ */
+function resolveRequestId(req: Request): string {
+  const header = req.headers['x-request-id'];
+  const candidate = Array.isArray(header) ? header[0] : header;
+
+  if (typeof candidate === 'string' && isValidClientRequestId(candidate)) {
+    return candidate;
   }
+
+  return randomUUID();
+}
+
+/**
+ * req.ip is ONLY trustworthy once Express's `trust proxy` setting (app.ts,
+ * driven by env.TRUST_PROXY) correctly matches the real deployment
+ * topology. With trust proxy disabled (current default — no reverse proxy
+ * configured yet), req.ip is the direct socket address, which is exactly
+ * what we want: it cannot be spoofed by a client-supplied header. Do NOT
+ * reintroduce manual X-Forwarded-For parsing here — that bypasses Express's
+ * proxy-hop-count logic entirely and was the actual bug being fixed.
+ */
+function resolveIp(req: Request): string {
   return req.ip ?? req.socket.remoteAddress ?? 'unknown';
 }
 
@@ -31,9 +66,9 @@ export function createRequestLogger(cfg: RequestLoggerConfig = {}): RequestHandl
       return next();
     }
 
-    const requestId = (req.headers['x-request-id'] as string) ?? randomUUID();
+    const requestId = resolveRequestId(req);
     const startAt = process.hrtime.bigint();
-    const ip = extractIp(req);
+    const ip = resolveIp(req);
 
     res.setHeader('X-Request-ID', requestId);
 
