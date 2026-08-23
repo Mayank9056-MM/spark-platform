@@ -1,10 +1,12 @@
 import { UserStatus } from '@spark/database/client';
 import { z } from 'zod';
 
+import { normalizeEmail } from '../../lib/email.js';
+
 import { USER_CONSTANTS } from './user.constants.js';
 
 export const createUserBodySchema = z.object({
-  email: z.email().toLowerCase(),
+  email: z.email().transform(normalizeEmail),
   firstName: z.string().trim().min(1).max(100),
   middleName: z.string().trim().min(1).max(100).optional(),
   lastName: z.string().trim().min(1).max(100),
@@ -37,7 +39,7 @@ export const listUsersQuerySchema = z.object({
     .max(USER_CONSTANTS.MAX_PAGE_SIZE)
     .default(USER_CONSTANTS.DEFAULT_PAGE_SIZE),
   search: z.string().trim().min(1).max(200).optional(),
-  status: z.nativeEnum(UserStatus).optional(),
+  status: z.enum(UserStatus).optional(),
   sortBy: z.enum(['createdAt', 'firstName', 'lastName', 'email']).default('createdAt'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 });
