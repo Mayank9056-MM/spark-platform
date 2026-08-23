@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { normalizeEmail } from '../../lib/email.js';
+
 /**
  * Shared password policy — used by both activation and password-reset,
  * so the rule lives in exactly one place.
@@ -18,7 +20,7 @@ export const loginBodySchema = z.object({
   // or slug lookup), replace organizationId with something a human can
   // actually type — a raw UUID in a login form is not the final UX.
   organizationId: z.uuid(),
-  email: z.email().toLowerCase(),
+  email: z.email().transform(normalizeEmail),
   password: z.string().min(1, 'Password is required'),
 });
 export type LoginBody = z.infer<typeof loginBodySchema>;
@@ -31,7 +33,7 @@ export type ActivateAccountBody = z.infer<typeof activateAccountBodySchema>;
 
 export const requestPasswordResetBodySchema = z.object({
   organizationId: z.uuid(),
-  email: z.email().toLowerCase(),
+  email: z.email().transform(normalizeEmail),
 });
 export type RequestPasswordResetBody = z.infer<typeof requestPasswordResetBodySchema>;
 
