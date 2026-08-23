@@ -8,25 +8,28 @@ const ADMIN_ROLE_KEYS = ['admin', 'super_admin'];
 /**
  * TEMPORARY STOPGAP — delete this file the day the RBAC module's real
  * can(user, action, scope) engine exists. This performs one narrow check
- * ("does this user hold an admin/super_admin RoleAssignment, right now,
- * anywhere in their org") directly against RoleAssignment/Role, bypassing
- * any real permission matrix.
- *
- * It exists only because leaving User-module mutation routes — create,
- * list, update-by-id, archive — reachable by ANY authenticated user is
- * not an acceptable gap for endpoints that create identities and expose
- * every user's PII in an organization, even for a short interim period.
+ * ("does this user hold an admin/super_admin RoleAssignment, right now, in
+ * THIS organization") directly against RoleAssignment/Role, bypassing any
+ * real permission matrix.
  *
  * Do NOT extend this with more roles or finer-grained checks. Any
  * additional authorization complexity beyond this one boolean is a sign
  * RBAC needs to be built now, not that this stopgap should grow.
  *
- * KNOWN DEPENDENCY: this assumes an 'admin' or 'super_admin' Role.key
- * exists, seeded per organization. No seed script exists yet as of this
- * writing — until one does, every route behind this guard will 403 for
- * everyone, with no way to bootstrap the first admin. Building that seed
- * script is a prerequisite to testing this module end-to-end, not
- * optional polish.
+ * Tenant-safety note: the composite foreign keys on RoleAssignment
+ * (role_assignments_organizationId_userId_fkey,
+ * role_assignments_organizationId_roleId_fkey) already make it physically
+ * impossible in Postgres for a RoleAssignment row's organizationId to
+ * disagree with its User's or Role's organizationId. The explicit
+ * `organizationId: req.user.organizationId` filter below is not closing a
+ * live cross-tenant escalation hole — the schema already prevents that data
+ * from existing — but it's still required: it's what makes the QUERY itself
+ * express "admin in this tenant," rather than depending silently on a
+ * database constraint someone could weaken later without this file
+ * noticing. Same reasoning applies to `role.deletedAt: null` and
+ * `validFrom`: the schema can't express "and this specific assignment/role
+ * is currently valid," only "if it exists, it's tenant-consistent" — that
+ * validity check has to live here.
  */
 export async function requireInterimAdmin(
   req: Request,
@@ -34,16 +37,28 @@ export async function requireInterimAdmin(
   next: NextFunction,
 ): Promise<void> {
   const userId = req.user?.id;
-  if (!userId) {
+  const organizationId = req.user?.organizationId;
+
+  if (!userId || !organizationId) {
+    // organizationId is populated by loadOrganizationContext, which must
+    // run before this guard on every route — if it's missing, that's a
+    // route-wiring bug, not a legitimate unauthenticated request.
     next(ApiError.unauthorized('Authentication required'));
     return;
   }
 
+  const now = new Date();
+
   const assignment = await prisma.roleAssignment.findFirst({
     where: {
       userId,
-      role: { key: { in: ADMIN_ROLE_KEYS } },
-      OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }],
+      organizationId,
+      role: {
+        key: { in: ADMIN_ROLE_KEYS },
+        deletedAt: null,
+      },
+      validFrom: { lte: now },
+      OR: [{ validUntil: null }, { validUntil: { gt: now } }],
     },
   });
 
