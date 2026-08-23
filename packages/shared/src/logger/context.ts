@@ -6,7 +6,7 @@ import type { LogMeta } from './types.js';
 
 export type LogContext = Pick<
   LogMeta,
-  'requestId' | 'traceId' | 'spanId' | 'sessionId' | 'userId' | 'ip'
+  'requestId' | 'traceId' | 'spanId' | 'sessionId' | 'userId' | 'organizationId' | 'ip'
 >;
 
 export const logContext = new AsyncLocalStorage<LogContext>();
