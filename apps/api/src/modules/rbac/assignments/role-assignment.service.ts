@@ -10,6 +10,7 @@ import { AuditEntityType } from '../../audit/audit.types.js';
 import { userRepository } from '../../user/user.repository.js';
 import type { OrganizationId } from '../authorization/authorization.types.js';
 import { roleRepository } from '../roles/role.repository.js';
+import { scopeService } from '../scopes/scope.service.js';
 
 import { toRoleAssignmentDTO, toRoleAssignmentDTOList } from './role-assignment.mapper.js';
 import { roleAssignmentRepository } from './role-assignment.repository.js';
@@ -54,14 +55,17 @@ export class RoleAssignmentService {
   // ── Create ────────────────────────────────────────────────────────
 
   /**
-   * Business flow (task section 32):
+   * Business flow:
    *  1. Resolve target user via a tenant-scoped lookup (never a global
    *     lookup + manual organizationId comparison).
    *  2. Resolve target role via a tenant-scoped lookup, same reasoning.
-   *  3. Validate the validFrom/validUntil ordering invariant.
-   *  4. Best-effort duplicate-active-assignment check.
-   *  5. Transaction: persist + audit.
-   *  6. Map, log, return.
+   *  3. Validate `input.scope` belongs to `organizationId` via
+   *     `scopeService.validateScopeOwnership()` (see SCOPE-OWNERSHIP
+   *     VALIDATION note below).
+   *  4. Validate the validFrom/validUntil ordering invariant.
+   *  5. Best-effort duplicate-active-assignment check.
+   *  6. Transaction: persist + audit.
+   *  7. Map, log, return.
    *
    * USER STATUS POLICY (task section 15) — DELIBERATELY NOT ENFORCED:
    * user.service.ts/user.repository.ts define no rule anywhere
@@ -85,25 +89,22 @@ export class RoleAssignmentService {
    * constrains it, so system-defined roles are assignable like any
    * other role here.
    *
-   * SCOPE-OWNERSHIP VALIDATION — INFRASTRUCTURE MISSING, NOT IMPLEMENTED:
-   * task sections 7/27 require verifying that a DEPARTMENT/DIVISION
-   * scope's `departmentId`/`divisionId` exists and belongs to
-   * `organizationId` before persisting. `scope.service.ts`,
-   * `scope-resolver.ts` (both the one under `rbac/scopes/` and the one
-   * under `rbac/authorization/`), and `scope.types.ts`/
-   * `scope.constants.ts` are ALL confirmed empty — there is currently no
-   * repository/service in this codebase capable of answering "does this
-   * department/division belong to this organization." Per this task's
-   * explicit instruction not to invent that infrastructure here, this
-   * method performs NO ownership validation on `input.scope` beyond what
-   * TypeScript's `ScopeContext` discriminated union already guarantees
-   * structurally (see the scope-invariant note below) — it passes the
-   * scope straight through to the repository. This is a real,
-   * currently-open security gap, matching schema.prisma's own comment on
-   * `RoleAssignment.scopeId` ("the RBAC service MUST validate scopeId's
-   * tenant/existence before insert") — that validation does not yet
-   * exist anywhere in this codebase. Flagged prominently in the
-   * accompanying report; not silently worked around.
+   * SCOPE-OWNERSHIP VALIDATION — NOW IMPLEMENTED via `scopeService`:
+   * `scopeService.validateScopeOwnership(organizationId, input.scope)`
+   * verifies that a DEPARTMENT/DIVISION scope's `departmentId`/
+   * `divisionId` exists and belongs to `organizationId` before this
+   * method proceeds to the duplicate check or the persistence
+   * transaction. This closes the gap schema.prisma's own comment on
+   * `RoleAssignment.scopeId` describes ("the RBAC service MUST validate
+   * scopeId's tenant/existence before insert"). All three `ScopeContext`
+   * variants (ORGANIZATION/DEPARTMENT/DIVISION) are handled entirely
+   * inside `scopeService` — this method does not switch on
+   * `input.scope.type`, query `prisma.department`/`prisma.division`, or
+   * call `scopeRepository` directly; it only orchestrates the call and
+   * lets `ApiError.notFound(..., ErrorCode.RECORD_NOT_FOUND)` propagate
+   * unmodified on failure, exactly like the User/Role not-found checks
+   * immediately above it. The check is read-only and runs before the
+   * mutation transaction opens below — it does not participate in it.
    *
    * SCOPE TYPE/ID INVARIANT (task section 8) — NOT RE-CHECKED HERE:
    * `ORGANIZATION` requiring a null id and `DEPARTMENT`/`DIVISION`
@@ -131,6 +132,13 @@ export class RoleAssignmentService {
     if (!targetRole) {
       throw ApiError.notFound('Role not found', ErrorCode.RECORD_NOT_FOUND);
     }
+
+    // Tenant-ownership check for the assignment's scope target (task:
+    // "Organization A + Department belonging to Organization B" must
+    // fail here, before any duplicate check or mutation). Centralized
+    // entirely in scopeService — see the SCOPE-OWNERSHIP VALIDATION note
+    // above. Any ApiError this throws propagates unchanged.
+    await scopeService.validateScopeOwnership(organizationId, input.scope);
 
     // "Effective now" default (task section 10): resolved once, here, so
     // the persisted row and the audit record it's paired with agree
