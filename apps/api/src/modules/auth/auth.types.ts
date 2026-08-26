@@ -16,7 +16,6 @@ export interface LoginResult {
 // The ONLY shape a User is allowed to take once it leaves this module.
 export interface UserPublicDTO {
   id: string;
-  organizationId: string;
   email: string;
   firstName: string;
   middleName: string | null;
@@ -52,7 +51,6 @@ export interface RequestMetadata {
 }
 
 export interface LoginParams {
-  organizationId: string;
   email: string;
   password: string;
   requestMeta: RequestMetadata;

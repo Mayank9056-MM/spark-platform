@@ -16,22 +16,20 @@ import type {
 } from './permission.types.js';
 
 /**
- * As with UserRepository, mutating methods take an explicit Prisma
- * transaction client rather than closing over the singleton — so a future
- * permission.service.ts can wrap a create/assign/revoke together with its
- * audit-log write in one `prisma.$transaction(...)`. Read-only methods use
- * the singleton directly.
+ * Prisma client type accepted by repository methods.
+ *
+ * Mutating methods receive an explicit transaction client so the service
+ * layer can atomically combine persistence changes with audit records.
+ *
+ * Read-only methods use the shared Prisma singleton.
  */
 type Db = PrismaClient | Prisma.TransactionClient;
 
 /**
- * Repository-local list result, distinct from permission.types.ts's
- * `ListPermissionsResult` by design, not by oversight. That type is the
- * service/DTO-facing contract; this one is the persistence-facing
- * contract, matching how UserRepository/AuthRepository return raw Prisma
- * models and leave DTO conversion to the mapper/service layer. See
- * permission.mapper.ts (not yet implemented) for where `Permission[]`
- * becomes `PermissionDTO[]`.
+ * Persistence-facing result for permission listing.
+ *
+ * This deliberately contains raw Prisma Permission models. DTO conversion
+ * belongs to permission.mapper.ts and service-layer response shaping.
  */
 export interface PermissionListQueryResult {
   readonly permissions: Permission[];
@@ -39,17 +37,37 @@ export interface PermissionListQueryResult {
 }
 
 /**
- * The only file allowed to call `prisma.permission.*` / `prisma.rolePermission.*`
- * directly. Persistence access only — this class makes no authorization
- * decisions and performs no role/permission checks; it answers "what's in
- * the catalog" and "what's linked to what," nothing more.
+ * Persistence boundary for the Permission domain.
  *
- * Permission is a global, non-organization-scoped table (unlike User/Role),
- * so no method here takes or filters by organizationId.
+ * This repository:
+ *
+ * - performs Permission persistence
+ * - performs RolePermission persistence
+ * - performs permission catalog queries
+ * - performs permission resolution for role IDs
+ *
+ * It does NOT:
+ *
+ * - make authorization decisions
+ * - determine whether a user may perform an action
+ * - validate roles
+ * - validate scopes
+ * - write audit records
+ * - contain HTTP concerns
+ *
+ * Permissions are global capability definitions in the single-college
+ * architecture. They do not contain organization, college, department,
+ * division, or tenant context.
  */
 export class PermissionRepository {
   // ── Permission ─────────────────────────────────────────────────────
 
+  /**
+   * Creates a Permission from its canonical resource/action identity.
+   *
+   * The permission key is always derived from resource + action rather
+   * than accepted as a separately supplied value.
+   */
   async create(tx: Db, input: CreatePermissionInput): Promise<Permission> {
     return tx.permission.create({
       data: {
@@ -61,11 +79,12 @@ export class PermissionRepository {
   }
 
   /**
-   * Idempotent upsert by the globally unique `key` — the primitive the
-   * permission seed script needs. Only `displayName`/`description` are
-   * ever updated on conflict; `key` (and therefore resource/action
-   * identity) is never rewritten, since existing RolePermission rows may
-   * already reference it.
+   * Idempotent permission bootstrap/upsert.
+   *
+   * Permission.key is the stable global identity.
+   *
+   * Existing keys retain their identity while human-facing metadata may
+   * be updated during seeding/bootstrap.
    */
   async upsertByKey(tx: Db, input: CreatePermissionInput): Promise<Permission> {
     const key = `${input.resource}:${input.action}`;
@@ -76,14 +95,25 @@ export class PermissionRepository {
     });
   }
 
+  /**
+   * Finds a permission by its primary identifier.
+   */
   async findById(id: PermissionId): Promise<Permission | null> {
     return prisma.permission.findUnique({ where: { id } });
   }
 
+  /**
+   * Finds a permission by its globally unique key.
+   */
   async findByKey(key: PermissionKey): Promise<Permission | null> {
     return prisma.permission.findUnique({ where: { key } });
   }
 
+  /**
+   * Updates mutable permission metadata.
+   *
+   * Permission identity (`key`, resource, action) is immutable.
+   */
   async update(tx: Db, id: PermissionId, input: UpdatePermissionInput): Promise<Permission> {
     return tx.permission.update({
       where: { id },
@@ -94,6 +124,9 @@ export class PermissionRepository {
     });
   }
 
+  /**
+   * Lists permissions using catalog filters and pagination.
+   */
   async findMany(
     filters: ListPermissionsFilters,
     options: ListPermissionsOptions,
@@ -133,12 +166,23 @@ export class PermissionRepository {
 
   // ── RolePermission ─────────────────────────────────────────────────
 
+  /**
+   * Grants a Permission to a Role.
+   *
+   * The database composite primary key on (roleId, permissionId) is the
+   * authoritative duplicate/concurrency guarantee.
+   */
   async assignToRole(tx: Db, input: AssignPermissionToRoleInput): Promise<RolePermission> {
     return tx.rolePermission.create({
       data: { roleId: input.roleId, permissionId: input.permissionId },
     });
   }
 
+  /**
+   * Revokes a Permission from a Role.
+   *
+   * The database composite key identifies the relationship uniquely.
+   */
   async revokeFromRole(tx: Db, roleId: string, permissionId: PermissionId): Promise<void> {
     await tx.rolePermission.delete({
       where: { roleId_permissionId: { roleId, permissionId } },
@@ -159,30 +203,47 @@ export class PermissionRepository {
     return count > 0;
   }
 
+  /**
+   * Returns all Permission relationships assigned to a Role.
+   *
+   * This returns the raw RolePermission persistence records.
+   */
   async findByRoleId(roleId: string): Promise<RolePermission[]> {
     return prisma.rolePermission.findMany({ where: { roleId } });
   }
 
   /**
-   * The permission-resolver's primary read: given a subject's effective
-   * role IDs, return the distinct set of Permissions those roles grant.
-   * Deduplicates across roles here (a query-shape concern) — it does NOT
-   * decide whether any of these permissions apply to a given
-   * AuthorizationContext; that's authorization.service.ts's job.
+   * Resolves the distinct Permissions granted by a set of Role IDs.
+   *
+   * This is a persistence/query concern only. It does not decide whether
+   * those permissions are effective for a user, resource, action, or scope.
+   *
+   * Deduplication happens by Permission ID so a permission granted through
+   * multiple roles is returned only once.
    */
   async resolvePermissionsForRoles(input: ResolvePermissionsForRolesInput): Promise<Permission[]> {
-    if (input.roleIds.length === 0) return [];
+    if (input.roleIds.length === 0) {
+      return [];
+    }
 
     const links = await prisma.rolePermission.findMany({
-      where: { roleId: { in: [...input.roleIds] } },
-      include: { permission: true },
+      where: {
+        roleId: {
+          in: [...input.roleIds],
+        },
+      },
+      include: {
+        permission: true,
+      },
     });
 
-    const byId = new Map<string, Permission>();
+    const permissionsById = new Map<string, Permission>();
+
     for (const link of links) {
-      byId.set(link.permission.id, link.permission);
+      permissionsById.set(link.permission.id, link.permission);
     }
-    return [...byId.values()];
+
+    return [...permissionsById.values()];
   }
 }
 

@@ -18,7 +18,6 @@ export class AuditRepository {
   async create(input: RecordAuditInput, db: Db = prisma): Promise<void> {
     await db.auditLog.create({
       data: {
-        organizationId: input.organizationId,
         actorUserId: input.actorUserId,
         action: input.action,
         entityType: input.entityType,

@@ -1,11 +1,8 @@
 -- CreateEnum
-CREATE TYPE "OrganizationStatus" AS ENUM ('ACTIVE', 'SUSPENDED', 'ARCHIVED');
-
--- CreateEnum
 CREATE TYPE "UserStatus" AS ENUM ('PENDING_ACTIVATION', 'ACTIVE', 'SUSPENDED', 'LOCKED', 'DEACTIVATED', 'ARCHIVED');
 
 -- CreateEnum
-CREATE TYPE "ScopeType" AS ENUM ('ORGANIZATION', 'DEPARTMENT', 'DIVISION');
+CREATE TYPE "ScopeType" AS ENUM ('COLLEGE', 'DEPARTMENT', 'DIVISION');
 
 -- CreateEnum
 CREATE TYPE "VerificationPurpose" AS ENUM ('ACCOUNT_ACTIVATION', 'INVITE_USER', 'PASSWORD_RESET', 'EMAIL_CHANGE');
@@ -65,25 +62,11 @@ CREATE TYPE "CalendarEventType" AS ENUM ('HOLIDAY', 'EXAM', 'WORKSHOP', 'SEMINAR
 CREATE TYPE "DocumentOwnerType" AS ENUM ('ASSIGNMENT', 'ASSIGNMENT_SUBMISSION', 'STUDY_MATERIAL', 'NOTICE');
 
 -- CreateEnum
-CREATE TYPE "AuditAction" AS ENUM ('CREATE', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT', 'ROLE_GRANTED', 'ROLE_REVOKED', 'PERMISSION_CHANGED', 'OTHER');
-
--- CreateTable
-CREATE TABLE "organizations" (
-    "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "slug" TEXT NOT NULL,
-    "status" "OrganizationStatus" NOT NULL DEFAULT 'ACTIVE',
-    "deletedAt" TIMESTAMP(3),
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "organizations_pkey" PRIMARY KEY ("id")
-);
+CREATE TYPE "AuditAction" AS ENUM ('CREATE', 'UPDATE', 'DELETE', 'ARCHIVE', 'RESTORE', 'LOGIN', 'LOGIN_FAILED', 'LOGOUT', 'LOGOUT_ALL_DEVICES', 'SESSION_REVOKED', 'ACCOUNT_ACTIVATED', 'PASSWORD_CHANGED', 'PASSWORD_RESET_REQUESTED', 'PASSWORD_RESET_COMPLETED', 'ROLE_GRANTED', 'ROLE_REVOKED', 'PERMISSION_CHANGED', 'OTHER');
 
 -- CreateTable
 CREATE TABLE "users" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "passwordHash" TEXT,
     "firstName" TEXT NOT NULL,
@@ -105,7 +88,6 @@ CREATE TABLE "users" (
 -- CreateTable
 CREATE TABLE "roles" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "key" TEXT NOT NULL,
     "displayName" TEXT NOT NULL,
     "isSystemDefined" BOOLEAN NOT NULL DEFAULT false,
@@ -140,7 +122,6 @@ CREATE TABLE "role_permissions" (
 CREATE TABLE "role_assignments" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "roleId" TEXT NOT NULL,
     "scopeType" "ScopeType" NOT NULL,
     "scopeId" TEXT,
@@ -198,7 +179,6 @@ CREATE TABLE "verification_tokens" (
 -- CreateTable
 CREATE TABLE "departments" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -210,7 +190,6 @@ CREATE TABLE "departments" (
 -- CreateTable
 CREATE TABLE "programs" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "departmentId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "code" TEXT NOT NULL,
@@ -248,7 +227,6 @@ CREATE TABLE "semester_catalogs" (
 -- CreateTable
 CREATE TABLE "academic_years" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "label" TEXT NOT NULL,
     "startDate" TIMESTAMP(3) NOT NULL,
     "endDate" TIMESTAMP(3) NOT NULL,
@@ -262,7 +240,6 @@ CREATE TABLE "academic_years" (
 -- CreateTable
 CREATE TABLE "divisions" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "programId" TEXT NOT NULL,
     "academicYearId" TEXT NOT NULL,
     "departmentId" TEXT NOT NULL,
@@ -276,7 +253,6 @@ CREATE TABLE "divisions" (
 -- CreateTable
 CREATE TABLE "admissions" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "admissionNumber" TEXT NOT NULL,
     "admissionDate" TIMESTAMP(3) NOT NULL,
@@ -295,7 +271,6 @@ CREATE TABLE "admissions" (
 -- CreateTable
 CREATE TABLE "student_enrollments" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "programId" TEXT NOT NULL,
     "curriculumVersionId" TEXT NOT NULL,
@@ -329,7 +304,6 @@ CREATE TABLE "semester_enrollments" (
 -- CreateTable
 CREATE TABLE "promotion_batches" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "divisionId" TEXT NOT NULL,
     "academicYearId" TEXT NOT NULL,
     "initiatedByUserId" TEXT NOT NULL,
@@ -360,7 +334,6 @@ CREATE TABLE "promotion_decisions" (
 -- CreateTable
 CREATE TABLE "subjects" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "semesterCatalogId" TEXT NOT NULL,
     "electiveGroupId" TEXT,
     "code" TEXT NOT NULL,
@@ -410,7 +383,6 @@ CREATE TABLE "subject_components" (
 -- CreateTable
 CREATE TABLE "subject_offerings" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "subjectId" TEXT NOT NULL,
     "divisionId" TEXT NOT NULL,
     "academicYearId" TEXT NOT NULL,
@@ -435,7 +407,6 @@ CREATE TABLE "faculty_assignments" (
 -- CreateTable
 CREATE TABLE "rooms" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "type" "RoomType" NOT NULL,
     "capacity" INTEGER NOT NULL,
@@ -448,7 +419,6 @@ CREATE TABLE "rooms" (
 -- CreateTable
 CREATE TABLE "time_slots" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "dayOfWeek" "DayOfWeek" NOT NULL,
     "startTime" TIME NOT NULL,
     "endTime" TIME NOT NULL,
@@ -461,6 +431,10 @@ CREATE TABLE "time_slots" (
 -- CreateTable
 CREATE TABLE "timetables" (
     "id" TEXT NOT NULL,
+    "divisionId" TEXT NOT NULL,
+    "dayOfWeek" "DayOfWeek" NOT NULL,
+    "startTime" TIME NOT NULL,
+    "endTime" TIME NOT NULL,
     "subjectOfferingId" TEXT NOT NULL,
     "subjectComponentId" TEXT NOT NULL,
     "facultyAssignmentId" TEXT NOT NULL,
@@ -478,6 +452,8 @@ CREATE TABLE "timetables" (
 -- CreateTable
 CREATE TABLE "lectures" (
     "id" TEXT NOT NULL,
+    "divisionId" TEXT NOT NULL,
+    "facultyUserId" TEXT NOT NULL,
     "timetableId" TEXT,
     "subjectOfferingId" TEXT NOT NULL,
     "subjectComponentId" TEXT NOT NULL,
@@ -515,6 +491,7 @@ CREATE TABLE "attendance_records" (
     "markedByUserId" TEXT NOT NULL,
     "correctedAt" TIMESTAMP(3),
     "correctionReason" TEXT,
+    "correctedByUserId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -571,7 +548,6 @@ CREATE TABLE "study_materials" (
 -- CreateTable
 CREATE TABLE "notices" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "body" TEXT NOT NULL,
     "publishedAt" TIMESTAMP(3),
@@ -596,7 +572,6 @@ CREATE TABLE "notice_audiences" (
 -- CreateTable
 CREATE TABLE "notifications" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "type" "NotificationType" NOT NULL,
     "title" TEXT NOT NULL,
     "body" TEXT NOT NULL,
@@ -620,13 +595,12 @@ CREATE TABLE "notification_recipients" (
 -- CreateTable
 CREATE TABLE "calendar_events" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "type" "CalendarEventType" NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
     "startAt" TIMESTAMP(3) NOT NULL,
     "endAt" TIMESTAMP(3) NOT NULL,
-    "scopeType" "ScopeType" NOT NULL DEFAULT 'ORGANIZATION',
+    "scopeType" "ScopeType" NOT NULL DEFAULT 'COLLEGE',
     "scopeId" TEXT,
     "createdByUserId" TEXT NOT NULL,
     "deletedAt" TIMESTAMP(3),
@@ -639,7 +613,6 @@ CREATE TABLE "calendar_events" (
 -- CreateTable
 CREATE TABLE "documents" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "ownerType" "DocumentOwnerType" NOT NULL,
     "ownerId" TEXT NOT NULL,
     "fileName" TEXT NOT NULL,
@@ -656,13 +629,13 @@ CREATE TABLE "documents" (
 -- CreateTable
 CREATE TABLE "audit_logs" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT,
     "actorUserId" TEXT,
     "action" "AuditAction" NOT NULL,
     "entityType" TEXT NOT NULL,
     "entityId" TEXT NOT NULL,
     "oldValue" JSONB,
     "newValue" JSONB,
+    "requestId" TEXT,
     "ipAddress" TEXT,
     "userAgent" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -671,46 +644,33 @@ CREATE TABLE "audit_logs" (
 );
 
 -- CreateTable
-CREATE TABLE "organization_settings" (
+CREATE TABLE "system_settings" (
     "id" TEXT NOT NULL,
-    "organizationId" TEXT NOT NULL,
     "key" TEXT NOT NULL,
     "value" JSONB NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "organization_settings_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "system_settings_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "organizations_slug_key" ON "organizations"("slug");
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
-CREATE INDEX "organizations_status_idx" ON "organizations"("status");
+CREATE INDEX "users_status_idx" ON "users"("status");
 
 -- CreateIndex
-CREATE INDEX "users_organizationId_status_idx" ON "users"("organizationId", "status");
+CREATE INDEX "users_lastLoginAt_idx" ON "users"("lastLoginAt");
 
 -- CreateIndex
-CREATE INDEX "users_organizationId_lastLoginAt_idx" ON "users"("organizationId", "lastLoginAt");
-
--- CreateIndex
-CREATE UNIQUE INDEX "users_organizationId_email_key" ON "users"("organizationId", "email");
-
--- CreateIndex
-CREATE INDEX "roles_organizationId_idx" ON "roles"("organizationId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "roles_organizationId_key_key" ON "roles"("organizationId", "key");
+CREATE UNIQUE INDEX "roles_key_key" ON "roles"("key");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "permissions_key_key" ON "permissions"("key");
 
 -- CreateIndex
 CREATE INDEX "role_permissions_permissionId_idx" ON "role_permissions"("permissionId");
-
--- CreateIndex
-CREATE INDEX "role_assignments_organizationId_idx" ON "role_assignments"("organizationId");
 
 -- CreateIndex
 CREATE INDEX "role_assignments_roleId_scopeType_scopeId_idx" ON "role_assignments"("roleId", "scopeType", "scopeId");
@@ -737,19 +697,13 @@ CREATE UNIQUE INDEX "verification_tokens_tokenHash_key" ON "verification_tokens"
 CREATE INDEX "verification_tokens_userId_purpose_idx" ON "verification_tokens"("userId", "purpose");
 
 -- CreateIndex
-CREATE INDEX "departments_organizationId_idx" ON "departments"("organizationId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "departments_organizationId_code_key" ON "departments"("organizationId", "code");
-
--- CreateIndex
-CREATE INDEX "programs_organizationId_idx" ON "programs"("organizationId");
+CREATE UNIQUE INDEX "departments_code_key" ON "departments"("code");
 
 -- CreateIndex
 CREATE INDEX "programs_departmentId_idx" ON "programs"("departmentId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "programs_organizationId_code_key" ON "programs"("organizationId", "code");
+CREATE UNIQUE INDEX "programs_code_key" ON "programs"("code");
 
 -- CreateIndex
 CREATE INDEX "curriculum_versions_programId_status_idx" ON "curriculum_versions"("programId", "status");
@@ -761,13 +715,10 @@ CREATE UNIQUE INDEX "curriculum_versions_programId_label_key" ON "curriculum_ver
 CREATE UNIQUE INDEX "semester_catalogs_curriculumVersionId_number_key" ON "semester_catalogs"("curriculumVersionId", "number");
 
 -- CreateIndex
-CREATE INDEX "academic_years_organizationId_isActive_idx" ON "academic_years"("organizationId", "isActive");
+CREATE INDEX "academic_years_isActive_idx" ON "academic_years"("isActive");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "academic_years_organizationId_label_key" ON "academic_years"("organizationId", "label");
-
--- CreateIndex
-CREATE INDEX "divisions_organizationId_idx" ON "divisions"("organizationId");
+CREATE UNIQUE INDEX "academic_years_label_key" ON "academic_years"("label");
 
 -- CreateIndex
 CREATE INDEX "divisions_academicYearId_idx" ON "divisions"("academicYearId");
@@ -782,10 +733,7 @@ CREATE UNIQUE INDEX "divisions_programId_academicYearId_name_key" ON "divisions"
 CREATE UNIQUE INDEX "admissions_userId_key" ON "admissions"("userId");
 
 -- CreateIndex
-CREATE INDEX "admissions_organizationId_idx" ON "admissions"("organizationId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "admissions_organizationId_admissionNumber_key" ON "admissions"("organizationId", "admissionNumber");
+CREATE UNIQUE INDEX "admissions_admissionNumber_key" ON "admissions"("admissionNumber");
 
 -- CreateIndex
 CREATE INDEX "student_enrollments_userId_idx" ON "student_enrollments"("userId");
@@ -794,7 +742,7 @@ CREATE INDEX "student_enrollments_userId_idx" ON "student_enrollments"("userId")
 CREATE INDEX "student_enrollments_programId_status_idx" ON "student_enrollments"("programId", "status");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "student_enrollments_organizationId_rollNumber_key" ON "student_enrollments"("organizationId", "rollNumber");
+CREATE UNIQUE INDEX "student_enrollments_rollNumber_key" ON "student_enrollments"("rollNumber");
 
 -- CreateIndex
 CREATE INDEX "semester_enrollments_divisionId_status_idx" ON "semester_enrollments"("divisionId", "status");
@@ -821,9 +769,6 @@ CREATE INDEX "promotion_decisions_studentEnrollmentId_idx" ON "promotion_decisio
 CREATE UNIQUE INDEX "promotion_decisions_promotionBatchId_studentEnrollmentId_key" ON "promotion_decisions"("promotionBatchId", "studentEnrollmentId");
 
 -- CreateIndex
-CREATE INDEX "subjects_organizationId_idx" ON "subjects"("organizationId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "subjects_semesterCatalogId_code_key" ON "subjects"("semesterCatalogId", "code");
 
 -- CreateIndex
@@ -848,10 +793,10 @@ CREATE INDEX "faculty_assignments_facultyUserId_idx" ON "faculty_assignments"("f
 CREATE UNIQUE INDEX "faculty_assignments_subjectOfferingId_subjectComponentId_key" ON "faculty_assignments"("subjectOfferingId", "subjectComponentId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "rooms_organizationId_name_key" ON "rooms"("organizationId", "name");
+CREATE UNIQUE INDEX "rooms_name_key" ON "rooms"("name");
 
 -- CreateIndex
-CREATE INDEX "time_slots_organizationId_dayOfWeek_idx" ON "time_slots"("organizationId", "dayOfWeek");
+CREATE INDEX "time_slots_dayOfWeek_idx" ON "time_slots"("dayOfWeek");
 
 -- CreateIndex
 CREATE INDEX "timetables_timeSlotId_roomId_idx" ON "timetables"("timeSlotId", "roomId");
@@ -887,7 +832,7 @@ CREATE UNIQUE INDEX "assignment_submissions_assignmentId_semesterEnrollmentId_ke
 CREATE INDEX "study_materials_subjectOfferingId_idx" ON "study_materials"("subjectOfferingId");
 
 -- CreateIndex
-CREATE INDEX "notices_organizationId_publishedAt_idx" ON "notices"("organizationId", "publishedAt");
+CREATE INDEX "notices_publishedAt_idx" ON "notices"("publishedAt");
 
 -- CreateIndex
 CREATE INDEX "notice_audiences_noticeId_idx" ON "notice_audiences"("noticeId");
@@ -896,7 +841,7 @@ CREATE INDEX "notice_audiences_noticeId_idx" ON "notice_audiences"("noticeId");
 CREATE INDEX "notice_audiences_scope_scopeId_idx" ON "notice_audiences"("scope", "scopeId");
 
 -- CreateIndex
-CREATE INDEX "notifications_organizationId_type_idx" ON "notifications"("organizationId", "type");
+CREATE INDEX "notifications_type_idx" ON "notifications"("type");
 
 -- CreateIndex
 CREATE INDEX "notification_recipients_userId_readAt_idx" ON "notification_recipients"("userId", "readAt");
@@ -905,31 +850,28 @@ CREATE INDEX "notification_recipients_userId_readAt_idx" ON "notification_recipi
 CREATE UNIQUE INDEX "notification_recipients_notificationId_userId_key" ON "notification_recipients"("notificationId", "userId");
 
 -- CreateIndex
-CREATE INDEX "calendar_events_organizationId_startAt_idx" ON "calendar_events"("organizationId", "startAt");
+CREATE INDEX "calendar_events_startAt_idx" ON "calendar_events"("startAt");
 
 -- CreateIndex
 CREATE INDEX "calendar_events_scopeType_scopeId_idx" ON "calendar_events"("scopeType", "scopeId");
 
 -- CreateIndex
-CREATE INDEX "documents_organizationId_ownerType_ownerId_idx" ON "documents"("organizationId", "ownerType", "ownerId");
+CREATE INDEX "documents_ownerType_ownerId_idx" ON "documents"("ownerType", "ownerId");
 
 -- CreateIndex
-CREATE INDEX "audit_logs_organizationId_entityType_entityId_idx" ON "audit_logs"("organizationId", "entityType", "entityId");
-
--- CreateIndex
-CREATE INDEX "audit_logs_actorUserId_idx" ON "audit_logs"("actorUserId");
+CREATE INDEX "audit_logs_entityType_entityId_idx" ON "audit_logs"("entityType", "entityId");
 
 -- CreateIndex
 CREATE INDEX "audit_logs_createdAt_idx" ON "audit_logs"("createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "organization_settings_organizationId_key_key" ON "organization_settings"("organizationId", "key");
+CREATE INDEX "audit_logs_action_createdAt_idx" ON "audit_logs"("action", "createdAt");
 
--- AddForeignKey
-ALTER TABLE "users" ADD CONSTRAINT "users_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- CreateIndex
+CREATE INDEX "audit_logs_actorUserId_idx" ON "audit_logs"("actorUserId");
 
--- AddForeignKey
-ALTER TABLE "roles" ADD CONSTRAINT "roles_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+-- CreateIndex
+CREATE UNIQUE INDEX "system_settings_key_key" ON "system_settings"("key");
 
 -- AddForeignKey
 ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -938,16 +880,13 @@ ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_roleId_fkey" FOR
 ALTER TABLE "role_permissions" ADD CONSTRAINT "role_permissions_permissionId_fkey" FOREIGN KEY ("permissionId") REFERENCES "permissions"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "role_assignments" ADD CONSTRAINT "role_assignments_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "role_assignments" ADD CONSTRAINT "role_assignments_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "role_assignments" ADD CONSTRAINT "role_assignments_roleId_fkey" FOREIGN KEY ("roleId") REFERENCES "roles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "role_assignments" ADD CONSTRAINT "role_assignments_grantedByUserId_fkey" FOREIGN KEY ("grantedByUserId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "role_assignments" ADD CONSTRAINT "role_assignments_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -959,22 +898,13 @@ ALTER TABLE "refresh_tokens" ADD CONSTRAINT "refresh_tokens_sessionId_fkey" FORE
 ALTER TABLE "verification_tokens" ADD CONSTRAINT "verification_tokens_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "departments" ADD CONSTRAINT "departments_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "programs" ADD CONSTRAINT "programs_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "programs" ADD CONSTRAINT "programs_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "curriculum_versions" ADD CONSTRAINT "curriculum_versions_programId_fkey" FOREIGN KEY ("programId") REFERENCES "programs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "semester_catalogs" ADD CONSTRAINT "semester_catalogs_curriculumVersionId_fkey" FOREIGN KEY ("curriculumVersionId") REFERENCES "curriculum_versions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "academic_years" ADD CONSTRAINT "academic_years_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "divisions" ADD CONSTRAINT "divisions_programId_fkey" FOREIGN KEY ("programId") REFERENCES "programs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -984,9 +914,6 @@ ALTER TABLE "divisions" ADD CONSTRAINT "divisions_academicYearId_fkey" FOREIGN K
 
 -- AddForeignKey
 ALTER TABLE "divisions" ADD CONSTRAINT "divisions_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "divisions" ADD CONSTRAINT "divisions_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "admissions" ADD CONSTRAINT "admissions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -999,12 +926,6 @@ ALTER TABLE "admissions" ADD CONSTRAINT "admissions_initialProgramId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "admissions" ADD CONSTRAINT "admissions_initialCurriculumId_fkey" FOREIGN KEY ("initialCurriculumId") REFERENCES "curriculum_versions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "admissions" ADD CONSTRAINT "admissions_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "student_enrollments" ADD CONSTRAINT "student_enrollments_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "student_enrollments" ADD CONSTRAINT "student_enrollments_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1026,9 +947,6 @@ ALTER TABLE "semester_enrollments" ADD CONSTRAINT "semester_enrollments_academic
 
 -- AddForeignKey
 ALTER TABLE "semester_enrollments" ADD CONSTRAINT "semester_enrollments_divisionId_fkey" FOREIGN KEY ("divisionId") REFERENCES "divisions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "promotion_batches" ADD CONSTRAINT "promotion_batches_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "promotion_batches" ADD CONSTRAINT "promotion_batches_divisionId_fkey" FOREIGN KEY ("divisionId") REFERENCES "divisions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1061,9 +979,6 @@ ALTER TABLE "subjects" ADD CONSTRAINT "subjects_semesterCatalogId_fkey" FOREIGN 
 ALTER TABLE "subjects" ADD CONSTRAINT "subjects_electiveGroupId_fkey" FOREIGN KEY ("electiveGroupId") REFERENCES "elective_groups"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "subjects" ADD CONSTRAINT "subjects_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "elective_groups" ADD CONSTRAINT "elective_groups_semesterCatalogId_fkey" FOREIGN KEY ("semesterCatalogId") REFERENCES "semester_catalogs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1088,9 +1003,6 @@ ALTER TABLE "subject_offerings" ADD CONSTRAINT "subject_offerings_divisionId_fke
 ALTER TABLE "subject_offerings" ADD CONSTRAINT "subject_offerings_academicYearId_fkey" FOREIGN KEY ("academicYearId") REFERENCES "academic_years"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "subject_offerings" ADD CONSTRAINT "subject_offerings_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "faculty_assignments" ADD CONSTRAINT "faculty_assignments_subjectOfferingId_fkey" FOREIGN KEY ("subjectOfferingId") REFERENCES "subject_offerings"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1100,13 +1012,10 @@ ALTER TABLE "faculty_assignments" ADD CONSTRAINT "faculty_assignments_subjectCom
 ALTER TABLE "faculty_assignments" ADD CONSTRAINT "faculty_assignments_facultyUserId_fkey" FOREIGN KEY ("facultyUserId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "rooms" ADD CONSTRAINT "rooms_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "time_slots" ADD CONSTRAINT "time_slots_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "timetables" ADD CONSTRAINT "timetables_subjectOfferingId_fkey" FOREIGN KEY ("subjectOfferingId") REFERENCES "subject_offerings"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "timetables" ADD CONSTRAINT "timetables_divisionId_fkey" FOREIGN KEY ("divisionId") REFERENCES "divisions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "timetables" ADD CONSTRAINT "timetables_subjectComponentId_fkey" FOREIGN KEY ("subjectComponentId") REFERENCES "subject_components"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1119,6 +1028,12 @@ ALTER TABLE "timetables" ADD CONSTRAINT "timetables_timeSlotId_fkey" FOREIGN KEY
 
 -- AddForeignKey
 ALTER TABLE "timetables" ADD CONSTRAINT "timetables_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "rooms"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "lectures" ADD CONSTRAINT "lectures_divisionId_fkey" FOREIGN KEY ("divisionId") REFERENCES "divisions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "lectures" ADD CONSTRAINT "lectures_facultyUserId_fkey" FOREIGN KEY ("facultyUserId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "lectures" ADD CONSTRAINT "lectures_timetableId_fkey" FOREIGN KEY ("timetableId") REFERENCES "timetables"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -1151,6 +1066,9 @@ ALTER TABLE "attendance_records" ADD CONSTRAINT "attendance_records_semesterEnro
 ALTER TABLE "attendance_records" ADD CONSTRAINT "attendance_records_markedByUserId_fkey" FOREIGN KEY ("markedByUserId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "attendance_records" ADD CONSTRAINT "attendance_records_correctedByUserId_fkey" FOREIGN KEY ("correctedByUserId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "assignments" ADD CONSTRAINT "assignments_subjectOfferingId_fkey" FOREIGN KEY ("subjectOfferingId") REFERENCES "subject_offerings"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1172,16 +1090,10 @@ ALTER TABLE "study_materials" ADD CONSTRAINT "study_materials_subjectOfferingId_
 ALTER TABLE "study_materials" ADD CONSTRAINT "study_materials_uploadedByUserId_fkey" FOREIGN KEY ("uploadedByUserId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "notices" ADD CONSTRAINT "notices_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "notices" ADD CONSTRAINT "notices_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "notice_audiences" ADD CONSTRAINT "notice_audiences_noticeId_fkey" FOREIGN KEY ("noticeId") REFERENCES "notices"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "notifications" ADD CONSTRAINT "notifications_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "notification_recipients" ADD CONSTRAINT "notification_recipients_notificationId_fkey" FOREIGN KEY ("notificationId") REFERENCES "notifications"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -1190,22 +1102,10 @@ ALTER TABLE "notification_recipients" ADD CONSTRAINT "notification_recipients_no
 ALTER TABLE "notification_recipients" ADD CONSTRAINT "notification_recipients_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "calendar_events" ADD CONSTRAINT "calendar_events_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "calendar_events" ADD CONSTRAINT "calendar_events_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "documents" ADD CONSTRAINT "documents_uploadedByUserId_fkey" FOREIGN KEY ("uploadedByUserId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "documents" ADD CONSTRAINT "documents_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_actorUserId_fkey" FOREIGN KEY ("actorUserId") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "organization_settings" ADD CONSTRAINT "organization_settings_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;

@@ -52,7 +52,7 @@ export type PermissionKey = `${AuthorizationResource}:${AuthorizationAction}`;
  * schema's CHECK constraint requires it (i.e. everywhere but ORGANIZATION).
  */
 export type ScopeContext =
-  | { readonly type: 'ORGANIZATION' }
+  | { readonly type: 'COLLEGE' }
   | { readonly type: 'DEPARTMENT'; readonly departmentId: string }
   | { readonly type: 'DIVISION'; readonly divisionId: string };
 
