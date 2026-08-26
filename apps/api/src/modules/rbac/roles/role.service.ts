@@ -7,7 +7,6 @@ import { ErrorCode } from '../../../common/errors/ErrorCodes.js';
 import { prisma } from '../../../lib/prisma.js';
 import { recordAuditTx } from '../../audit/audit.service.js';
 import { AuditEntityType } from '../../audit/audit.types.js';
-import type { OrganizationId } from '../authorization/authorization.types.js';
 import { permissionService } from '../permissions/permission.service.js';
 import type { PermissionId } from '../permissions/permission.types.js';
 
@@ -186,11 +185,7 @@ export class RoleService {
    * System-defined roles cannot be archived because doing so could remove
    * a protected baseline role from the RBAC model.
    */
-  async archiveRole(
-    actorUserId: string,
-    organizationId: OrganizationId,
-    roleId: RoleId,
-  ): Promise<void> {
+  async archiveRole(actorUserId: string, roleId: RoleId): Promise<void> {
     const existing = await roleRepository.findById(roleId);
     if (!existing) {
       throw ApiError.notFound('Role not found', ErrorCode.RECORD_NOT_FOUND);
@@ -213,7 +208,7 @@ export class RoleService {
       });
     });
 
-    roleLogger.info('Role archived', { roleId: existing.id, organizationId, actorUserId });
+    roleLogger.info('Role archived', { roleId: existing.id, actorUserId });
   }
 
   /**
