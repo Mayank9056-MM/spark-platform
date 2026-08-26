@@ -11,8 +11,9 @@ import type { DepartmentId, DivisionId } from './scope.types.js';
  * organizationId/tenant context in this repository.
  *
  * This repository answers only whether a referenced Department or Division
- * exists in the database. Business semantics for invalid scope targets
- * belong to scope.service.ts.
+ * exists in the database, plus (see findDepartmentIdForDivision below) the
+ * one trusted structural relationship the scope-coverage layer needs.
+ * Business semantics for invalid scope targets belong to scope.service.ts.
  *
  * This file intentionally contains:
  * - no ApiError
@@ -57,6 +58,27 @@ export class ScopeRepository {
       where: { id: divisionId },
     });
     return count > 0;
+  }
+
+  /**
+   * Returns the departmentId that owns the given Division, or null if the
+   * Division does not exist.
+   *
+   * This is the only method in this repository that exposes a Department
+   * ↔ Division relationship rather than a bare existence check. It exists
+   * for scope-resolver.ts's DEPARTMENT-grants-DIVISION coverage check,
+   * which requires a trusted relationship fact — it must never be
+   * inferred by comparing IDs. Division.departmentId is a required
+   * (non-nullable) column on the Prisma model, so any existing Division
+   * row always has a departmentId; null here means "Division not found",
+   * not "Division has no department".
+   */
+  async findDepartmentIdForDivision(divisionId: DivisionId): Promise<string | null> {
+    const division = await prisma.division.findUnique({
+      where: { id: divisionId },
+      select: { departmentId: true },
+    });
+    return division?.departmentId ?? null;
   }
 }
 
