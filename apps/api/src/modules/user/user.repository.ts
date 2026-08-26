@@ -27,7 +27,6 @@ export class UserRepository {
   async create(tx: Db, input: CreateUserInput): Promise<User> {
     return tx.user.create({
       data: {
-        organizationId: input.organizationId,
         email: normalizeEmail(input.email),
         firstName: input.firstName,
         middleName: input.middleName ?? null,
@@ -41,36 +40,32 @@ export class UserRepository {
     });
   }
 
-  async findById(organizationId: string, id: string, includeDeleted = false): Promise<User | null> {
+  async findById(id: string, includeDeleted = false): Promise<User | null> {
     return prisma.user.findFirst({
       where: {
         id,
-        organizationId,
         ...(includeDeleted ? {} : { deletedAt: null }),
       },
     });
   }
 
-  async existsByEmail(organizationId: string, email: string): Promise<boolean> {
+  async existsByEmail(email: string): Promise<boolean> {
     const count = await prisma.user.count({
-      where: { organizationId, email: normalizeEmail(email) },
+      where: { email: normalizeEmail(email) },
     });
     return count > 0;
   }
 
   /**
-   * `organizationId` + `id` together, resolved through the
-   * `users_organizationId_id_key` composite unique constraint — the same
-   * single atomic query the brief asks for (Phase 2), rather than a bare
-   * `where: { id }` that trusts an earlier, separate existence check. If a
-   * caller passes an organizationId/id pair that doesn't exist together
-   * (wrong tenant, wrong id, or both), Prisma throws P2025 — mapped to a
-   * clean 404 by the Prisma error mapper — instead of silently updating a
-   * row across a tenant boundary.
+   * Resolved through `id`, the primary key — there is no organizationId
+   * boundary to fold into the where clause anymore. If a caller passes an
+   * id that doesn't exist, Prisma throws P2025 — mapped to a clean 404 by
+   * the Prisma error mapper — same failure behavior as before, just
+   * without a composite key to prove.
    */
-  async update(tx: Db, organizationId: string, id: string, input: UpdateUserInput): Promise<User> {
+  async update(tx: Db, id: string, input: UpdateUserInput): Promise<User> {
     return tx.user.update({
-      where: { organizationId_id: { organizationId, id } },
+      where: { id },
       data: {
         ...(input.firstName !== undefined && { firstName: input.firstName }),
         ...(input.middleName !== undefined && { middleName: input.middleName }),
@@ -88,25 +83,24 @@ export class UserRepository {
    * — deliberately using DEACTIVATED so restore() remains meaningful.
    * True ARCHIVED/erasure is a separate, not-yet-built endpoint.
    *
-   * Same organizationId+id atomic-where reasoning as update() above.
+   * Same id-only where reasoning as update() above.
    */
-  async archive(tx: Db, organizationId: string, id: string): Promise<User> {
+  async archive(tx: Db, id: string): Promise<User> {
     return tx.user.update({
-      where: { organizationId_id: { organizationId, id } },
+      where: { id },
       data: { status: 'DEACTIVATED', deletedAt: new Date() },
     });
   }
 
-  async restore(tx: Db, organizationId: string, id: string): Promise<User> {
+  async restore(tx: Db, id: string): Promise<User> {
     return tx.user.update({
-      where: { organizationId_id: { organizationId, id } },
+      where: { id },
       data: { status: 'ACTIVE', deletedAt: null },
     });
   }
 
   async findMany(filters: ListUsersFilters, options: ListUsersOptions): Promise<ListUsersResult> {
     const where: Prisma.UserWhereInput = {
-      organizationId: filters.organizationId,
       deletedAt: null,
       ...(filters.status && { status: filters.status }),
       ...(filters.search && {

@@ -1,16 +1,16 @@
 // apps/api/src/modules/rbac/roles/role.types.ts
 
-import type { OrganizationId, PermissionKey } from '../authorization/authorization.types.js';
+import type { PermissionKey } from '../authorization/authorization.types.js';
 import type { PermissionId, PermissionSummaryDTO } from '../permissions/permission.types.js';
 
 /**
- * A Role is a named, organization-scoped collection of permissions.
- * It answers "what permissions does this role grant" — never "who holds
- * this role" (RoleAssignment, a separate module) and never "is this
- * specific request allowed" (the authorization engine).
+ * A Role is a named collection of permissions, global within this
+ * single-college deployment. It answers "what permissions does this role
+ * grant" — never "who holds this role" (RoleAssignment, a separate
+ * module) and never "is this specific request allowed" (the
+ * authorization engine).
  *
- * Role is organization-scoped; Permission is global. A Role's
- * organizationId is mandatory — there is no cross-organization Role.
+ * There is no tenant boundary: a Role's identity is its `key` alone.
  *
  * No role hierarchy or inheritance is modeled: the Prisma Role model has
  * no parent-role/inherited-permission concept, so none is invented here.
@@ -19,12 +19,11 @@ import type { PermissionId, PermissionSummaryDTO } from '../permissions/permissi
 export type RoleId = string;
 
 /**
- * `key` is a role's stable identity within its organization — unique per
- * `(organizationId, key)`, NOT globally unique. It should be treated as
- * immutable once created: RoleAssignment and RolePermission rows
- * reference a role by id, but external seed/config/integration surfaces
- * commonly reference it by key, and changing it after the fact would
- * silently break those references. `displayName` is the mutable,
+ * `key` is a role's stable, globally unique identity. It should be
+ * treated as immutable once created: RoleAssignment and RolePermission
+ * rows reference a role by id, but external seed/config/integration
+ * surfaces commonly reference it by key, and changing it after the fact
+ * would silently break those references. `displayName` is the mutable,
  * human-facing label.
  *
  * `isSystemDefined` exists on the Prisma model
@@ -34,7 +33,6 @@ export type RoleId = string;
  */
 export interface RoleDTO {
   readonly id: RoleId;
-  readonly organizationId: OrganizationId;
   readonly key: string;
   readonly displayName: string;
   readonly isSystemDefined: boolean;
@@ -45,7 +43,6 @@ export interface RoleDTO {
 /** Minimal shape for embedding a role reference inside another DTO (e.g. a future RoleAssignmentDTO) without re-fetching the full record. */
 export interface RoleSummaryDTO {
   readonly id: RoleId;
-  readonly organizationId: OrganizationId;
   readonly key: string;
   readonly displayName: string;
 }
@@ -61,21 +58,10 @@ export interface RoleWithPermissionsDTO extends RoleDTO {
 }
 
 /**
- * Deliberately excludes `organizationId`. The tenant a Role belongs to
- * must come from trusted server context (the authenticated caller's
- * session/org), never from client-supplied input — an authenticated
- * admin of Organization A must not be able to submit
- * `{ organizationId: "org-B" }` and create a Role in Organization B.
- *
- * The intended call shape is `roleService.createRole(organizationId,
- * input)`, with `organizationId` passed as a separate, trusted
- * parameter — the same pattern permission.service.ts's
- * createPermission/user.service.ts's createUser already establish for
- * actor/tenant context versus request-body business data.
- *
- * `isSystemDefined` is also excluded — a caller must never be able to
- * submit `isSystemDefined: true` to manufacture a protected role. Only
- * trusted server-side seed logic may set it, at the repository layer.
+ * `isSystemDefined` is excluded — a caller must never be able to submit
+ * `isSystemDefined: true` to manufacture a protected role. Only trusted
+ * server-side seed logic may set it, at the repository layer
+ * (`createSystemRole`).
  */
 export interface CreateRoleInput {
   readonly key: string;
@@ -92,15 +78,7 @@ export interface UpdateRoleInput {
   readonly displayName?: string;
 }
 
-/**
- * `organizationId` here is a trusted repository/service-layer filter,
- * not a client-selectable field — Role being organization-scoped means
- * every list query is necessarily scoped to one tenant, but that tenant
- * still comes from server context, not from request input the caller
- * controls.
- */
 export interface ListRolesFilters {
-  readonly organizationId: OrganizationId;
   readonly search?: string;
   readonly isSystemDefined?: boolean;
 }

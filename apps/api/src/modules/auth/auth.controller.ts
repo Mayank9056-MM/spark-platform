@@ -51,11 +51,16 @@ function requireRefreshTokenCookie(req: Request): string {
   return token;
 }
 
+/**
+ * Authenticates a user using the single-college identity boundary.
+ *
+ * The client supplies only email/password. There is no organizationId,
+ * collegeId, or tenant identifier in the request.
+ */
 export const login = async (req: Request, res: Response) => {
   const body = req.valid?.body as LoginBody;
 
   const result = await authService.login({
-    organizationId: body.organizationId,
     email: body.email,
     password: body.password,
     requestMeta: extractRequestMetadata(req),
@@ -127,9 +132,17 @@ export const activateAccount = async (req: Request, res: Response) => {
   ApiResponse.ok(res, null, 'Account activated — you may now log in');
 };
 
+/**
+ * Requests a password reset.
+ *
+ * No organization/college identifier is accepted from the client.
+ *
+ * The service must preserve anti-enumeration behavior by returning the
+ * same externally visible result whether or not the email exists.
+ */
 export const requestPasswordReset = async (req: Request, res: Response) => {
   const body = req.valid?.body as RequestPasswordResetBody;
-  await authService.requestPasswordReset(body.organizationId, body.email);
+  await authService.requestPasswordReset(body.email);
   // Same response regardless of whether the account exists — anti-
   // enumeration, matching the service's own behavior.
   ApiResponse.ok(res, null, 'If that account exists, a reset link has been sent');

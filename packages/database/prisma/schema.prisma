@@ -7,58 +7,11 @@ datasource db {
   provider = "postgresql"
 }
 
-// DOMAIN 1 — IDENTITY (Tenancy, Users, RBAC, Sessions, Tokens)
-// Position/PositionAssignment intentionally removed for MVP.
-
-enum OrganizationStatus {
-  ACTIVE
-  SUSPENDED
-  ARCHIVED
-}
-
-model Organization {
-  id     String             @id @default(uuid())
-  name   String
-  slug   String             @unique
-  status OrganizationStatus @default(ACTIVE)
-
-  deletedAt DateTime?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  users               User[]
-  roles               Role[]
-  departments         Department[]
-  academicYears       AcademicYear[]
-  studentEnrollments  StudentEnrollment[]
-  promotionBatches    PromotionBatch[]
-  notices             Notice[]
-  notifications       Notification[]
-  calendarEvents      CalendarEvent[]
-  auditLogs           AuditLog[]
-  settings            OrganizationSetting[]
-  subjects            Subject[]
-  rooms               Room[]
-  timeSlots           TimeSlot[]
-  documents           Document[]
-  admissions          Admission[]
-  subjectOfferings    SubjectOffering[]
-  roleAssignments     RoleAssignment[]
-  programs            Program[]
-  divisions           Division[]
-  curriculumVersions  CurriculumVersion[]
-  semesterCatalogs    SemesterCatalog[]
-  semesterEnrollments SemesterEnrollment[]
-  timetables          Timetable[]
-  lectures            Lecture[]
-  facultyAssignments  FacultyAssignment[]
-
-  @@unique([id]) // trivially satisfied (id is already PK) — present only so
-  // every composite-FK "child" model below can consistently reference
-  // Organization the same way it references every other tenant-scoped parent.
-  @@index([status])
-  @@map("organizations")
-}
+// DOMAIN 1 — IDENTITY (Users, RBAC, Sessions, Tokens)
+// Single-college architecture: the deployment/database itself represents
+// the college. There is no tenant boundary and no Organization/College
+// table. Position/PositionAssignment intentionally removed for MVP
+// (unchanged from before).
 
 enum UserStatus {
   PENDING_ACTIVATION
@@ -70,15 +23,14 @@ enum UserStatus {
 }
 
 model User {
-  id             String     @id @default(uuid())
-  organizationId String
-  email          String
-  passwordHash   String?
-  firstName      String
-  middleName     String?
-  lastName       String
-  status         UserStatus @default(PENDING_ACTIVATION)
-  avatarUrl      String?
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String?
+  firstName    String
+  middleName   String?
+  lastName     String
+  status       UserStatus @default(PENDING_ACTIVATION)
+  avatarUrl    String?
 
   failedLoginAttempts  Int       @default(0)
   lockedUntil          DateTime?
@@ -89,11 +41,9 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-
   // onDelete intentionally left default (Restrict) on every back-relation
-  // below that touches institutional history — see ANALYSIS.md §H. Users are
-  // never hard-deleted; use status = ARCHIVED / deletedAt instead.
+  // below that touches institutional history. Users are never hard-deleted;
+  // use status = ARCHIVED / deletedAt instead.
   roleAssignments    RoleAssignment[]    @relation("UserRoleAssignments")
   grantedAssignments RoleAssignment[]    @relation("GrantedRoleAssignments")
   sessions           Session[]
@@ -118,19 +68,14 @@ model User {
   notificationInbox     NotificationRecipient[]
   lecturesAsFaculty     Lecture[]               @relation("LectureFaculty")
 
-  @@unique([organizationId, email])
-  @@unique([organizationId, id]) // enables composite FKs from RoleAssignment
-  // (and any future model) that must prove userId belongs to the same
-  // organizationId it declares — see RoleAssignment below.
-  @@index([organizationId, status])
-  @@index([organizationId, lastLoginAt])
+  @@index([status])
+  @@index([lastLoginAt])
   @@map("users")
 }
 
 model Role {
   id              String  @id @default(uuid())
-  organizationId  String
-  key             String
+  key             String  @unique
   displayName     String
   isSystemDefined Boolean @default(false)
 
@@ -138,13 +83,9 @@ model Role {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  organization    Organization     @relation(fields: [organizationId], references: [id])
   rolePermissions RolePermission[]
   roleAssignments RoleAssignment[]
 
-  @@unique([organizationId, key])
-  @@unique([organizationId, id]) // composite-FK target for RoleAssignment
-  @@index([organizationId])
   @@map("roles")
 }
 
@@ -176,25 +117,17 @@ model RolePermission {
 }
 
 enum ScopeType {
-  ORGANIZATION
+  COLLEGE
   DEPARTMENT
   DIVISION
 }
 
 model RoleAssignment {
-  id             String    @id @default(uuid())
-  userId         String
-  organizationId String // denormalized from User.organizationId — enables
-  // tenant-scoped queries/future partitioning without a join at scale
-  roleId         String
-  scopeType      ScopeType
-  scopeId        String?
-  // DB enforces: scopeType = ORGANIZATION -> scopeId IS NULL (CHECK, see
-  // migration.sql). It CANNOT enforce "scopeId belongs to the right org" —
-  // scopeId polymorphically points at Department OR Division depending on
-  // scopeType, and Postgres has no native polymorphic FK. The RBAC service
-  // MUST validate scopeId's tenant/existence before insert, in the same
-  // transaction that writes the AuditLog entry (see ANALYSIS.md §G/§K).
+  id        String    @id @default(uuid())
+  userId    String
+  roleId    String
+  scopeType ScopeType
+  scopeId   String?
 
   validFrom  DateTime  @default(now())
   validUntil DateTime?
@@ -204,19 +137,12 @@ model RoleAssignment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Changed from Cascade -> Restrict (see ANALYSIS.md §H): deleting a User
-  // must never silently delete their role-assignment history. Archive the
-  // user instead.
-  user         User         @relation("UserRoleAssignments", fields: [organizationId, userId], references: [organizationId, id])
-  role         Role         @relation(fields: [organizationId, roleId], references: [organizationId, id], onDelete: Restrict)
-  // ^ Both are now composite FKs: Postgres physically rejects a RoleAssignment
-  // whose organizationId doesn't match its User's or its Role's organizationId.
-  // This is the concrete fix for the "User A + Role B across orgs" scenario
-  // called out in the brief.
-  grantedBy    User?        @relation("GrantedRoleAssignments", fields: [grantedByUserId], references: [id], onDelete: SetNull)
-  organization Organization @relation(fields: [organizationId], references: [id])
+  // Restrict (not Cascade): deleting a User must never silently delete
+  // their role-assignment history. Archive the user instead.
+  user      User  @relation("UserRoleAssignments", fields: [userId], references: [id])
+  role      Role  @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  grantedBy User? @relation("GrantedRoleAssignments", fields: [grantedByUserId], references: [id], onDelete: SetNull)
 
-  @@index([organizationId])
   @@index([roleId, scopeType, scopeId])
   @@index([userId, validUntil])
   @@map("role_assignments")
@@ -288,38 +214,29 @@ model VerificationToken {
 // DOMAIN 2 — ACADEMIC STRUCTURE
 
 model Department {
-  id             String @id @default(uuid())
-  organizationId String
-  name           String
-  code           String
+  id   String @id @default(uuid())
+  name String
+  code String
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  programs     Program[]
-  divisions    Division[]
+  programs  Program[]
+  divisions Division[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([organizationId, code])
-  @@unique([organizationId, id]) // composite-FK target for Program, Division
-  @@index([organizationId])
+  @@unique([code])
   @@map("departments")
 }
 
 model Program {
   id             String @id @default(uuid())
-  organizationId String // denormalized from Department.organizationId — same
-  // pattern/justification as RoleAssignment.organizationId
   departmentId   String
   name           String
   code           String
   durationYears  Int
   totalSemesters Int
 
-  department         Department          @relation(fields: [organizationId, departmentId], references: [organizationId, id])
-  // ^ composite FK: was single-column departmentId -> Department.id before;
-  // now Postgres enforces Program.organizationId == Department.organizationId.
-  organization       Organization        @relation(fields: [organizationId], references: [id])
+  department         Department          @relation(fields: [departmentId], references: [id])
   curriculumVersions CurriculumVersion[]
   divisions          Division[]
   studentEnrollments StudentEnrollment[]
@@ -328,10 +245,7 @@ model Program {
   updatedAt  DateTime    @updatedAt
   admissions Admission[]
 
-  @@unique([organizationId, code])
-  @@unique([organizationId, id]) // composite-FK target for Division, Admission,
-  // StudentEnrollment, CurriculumVersion
-  @@index([organizationId])
+  @@unique([code])
   @@index([departmentId])
   @@map("programs")
 }
@@ -343,15 +257,12 @@ enum CurriculumStatus {
 }
 
 model CurriculumVersion {
-  id             String           @id @default(uuid())
-  organizationId String // denormalized from Program.organizationId — same
-  // pattern/justification as Program.organizationId.
-  programId      String
-  label          String
-  status         CurriculumStatus @default(DRAFT)
+  id        String           @id @default(uuid())
+  programId String
+  label     String
+  status    CurriculumStatus @default(DRAFT)
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  program      Program      @relation(fields: [organizationId, programId], references: [organizationId, id])
+  program Program @relation(fields: [programId], references: [id])
 
   semesterCatalogs   SemesterCatalog[]
   studentEnrollments StudentEnrollment[]
@@ -361,20 +272,16 @@ model CurriculumVersion {
   admissions Admission[]
 
   @@unique([programId, label])
-  @@unique([organizationId, id])
-  @@index([organizationId])
   @@index([programId, status])
   @@map("curriculum_versions")
 }
 
 model SemesterCatalog {
   id                  String @id @default(uuid())
-  organizationId      String // denormalized from CurriculumVersion.organizationId
   curriculumVersionId String
   number              Int
 
-  organization      Organization      @relation(fields: [organizationId], references: [id])
-  curriculumVersion CurriculumVersion @relation(fields: [organizationId, curriculumVersionId], references: [organizationId, id])
+  curriculumVersion CurriculumVersion @relation(fields: [curriculumVersionId], references: [id])
 
   semesterEnrollments SemesterEnrollment[]
   subjects            Subject[]
@@ -384,25 +291,16 @@ model SemesterCatalog {
   updatedAt DateTime @updatedAt
 
   @@unique([curriculumVersionId, number])
-  @@unique([organizationId, id])
-  @@index([organizationId])
   @@map("semester_catalogs")
 }
 
 model AcademicYear {
-  id             String   @id @default(uuid())
-  organizationId String
-  label          String
-  startDate      DateTime
-  endDate        DateTime
-  isActive       Boolean  @default(false)
-  // "At most one AcademicYear per organization may have isActive = true" is
-  // enforced at the DATABASE level via a partial unique index — see
-  // migration.sql (`academic_years_one_active_per_org`). Prisma's
-  // declarative schema syntax cannot express a partial/conditional unique
-  // index, so this constraint lives in a raw SQL migration, not here.
+  id        String   @id @default(uuid())
+  label     String
+  startDate DateTime
+  endDate   DateTime
+  isActive  Boolean  @default(false)
 
-  organization        Organization         @relation(fields: [organizationId], references: [id])
   divisions           Division[]
   semesterEnrollments SemesterEnrollment[]
   promotionBatches    PromotionBatch[]
@@ -411,33 +309,27 @@ model AcademicYear {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([organizationId, label])
-  @@unique([organizationId, id]) // composite-FK target for Division,
-  // SemesterEnrollment, SubjectOffering
-  @@index([organizationId, isActive])
+  @@unique([label])
+  @@index([isActive])
   @@map("academic_years")
 }
 
 model Division {
   id             String @id @default(uuid())
-  organizationId String
   programId      String
   academicYearId String
   departmentId   String
   name           String // "A", "B"
 
-  program      Program      @relation(fields: [organizationId, programId], references: [organizationId, id])
-  academicYear AcademicYear @relation(fields: [organizationId, academicYearId], references: [organizationId, id])
-  department   Department   @relation(fields: [organizationId, departmentId], references: [organizationId, id])
-  organization Organization @relation(fields: [organizationId], references: [id])
-  // All three parent relations are now composite FKs — a Division can no
-  // longer reference a Program/AcademicYear/Department belonging to a
-  // different organization than the Division itself declares. Note this
-  // does NOT yet guarantee Division.departmentId == Program.departmentId
-  // (the institutional invariant called out in the brief) — Postgres can't
-  // express "these two FKs must agree" without a trigger, and a trigger for
-  // a single cross-field agreement check is more machinery than the rule is
-  // worth. Enforce in the service layer when creating/updating a Division.
+  program      Program      @relation(fields: [programId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  department   Department   @relation(fields: [departmentId], references: [id])
+  // This does NOT guarantee Division.departmentId == Program.departmentId
+  // (the institutional invariant). Postgres can't express "these two FKs
+  // must agree" without a trigger, and a trigger for a single cross-field
+  // agreement check is more machinery than the rule is worth. Enforce in
+  // the service layer when creating/updating a Division — unchanged from
+  // before; tenancy removal does not remove this business rule.
 
   semesterEnrollments SemesterEnrollment[]
   promotionBatches    PromotionBatch[]
@@ -449,9 +341,6 @@ model Division {
   updatedAt DateTime @updatedAt
 
   @@unique([programId, academicYearId, name])
-  @@unique([organizationId, id]) // composite-FK target for SubjectOffering,
-  // SemesterEnrollment, Timetable, Lecture
-  @@index([organizationId])
   @@index([academicYearId])
   @@index([departmentId])
   @@map("divisions")
@@ -476,7 +365,6 @@ enum AdmissionStatus {
 // permanently distinct from their ongoing academic lifecycle.
 model Admission {
   id                  String          @id @default(uuid())
-  organizationId      String
   userId              String          @unique
   admissionNumber     String
   admissionDate       DateTime
@@ -492,15 +380,13 @@ model Admission {
 
   user              User              @relation("AdmittedStudent", fields: [userId], references: [id])
   admittedBy        User              @relation("AdmittedBy", fields: [admittedByUserId], references: [id])
-  initialProgram    Program           @relation(fields: [organizationId, initialProgramId], references: [organizationId, id])
-  initialCurriculum CurriculumVersion @relation(fields: [organizationId, initialCurriculumId], references: [organizationId, id])
-  organization      Organization      @relation(fields: [organizationId], references: [id])
-  // NOTE: does not enforce initialCurriculum belongs to initialProgram
-  // (only that both belong to the same org) — that cross-field agreement is
-  // a service-layer check at admission time, same reasoning as Division above.
+  initialProgram    Program           @relation(fields: [initialProgramId], references: [id])
+  initialCurriculum CurriculumVersion @relation(fields: [initialCurriculumId], references: [id])
+  // NOTE: does not enforce initialCurriculum belongs to initialProgram —
+  // that cross-field agreement is a service-layer check at admission time,
+  // same reasoning as Division above. Unchanged by tenancy removal.
 
-  @@unique([organizationId, admissionNumber])
-  @@index([organizationId])
+  @@unique([admissionNumber])
   @@map("admissions")
 }
 
@@ -521,7 +407,6 @@ enum StudentLifecycleStatus {
 
 model StudentEnrollment {
   id                  String                 @id @default(uuid())
-  organizationId      String
   userId              String
   programId           String
   curriculumVersionId String // locked at admission time; a later curriculum
@@ -533,10 +418,9 @@ model StudentEnrollment {
   statusReason        String?
   statusChangedAt     DateTime?
 
-  organization        Organization         @relation(fields: [organizationId], references: [id])
   user                User                 @relation(fields: [userId], references: [id])
-  program             Program              @relation(fields: [organizationId, programId], references: [organizationId, id])
-  curriculumVersion   CurriculumVersion    @relation(fields: [organizationId, curriculumVersionId], references: [organizationId, id])
+  program             Program              @relation(fields: [programId], references: [id])
+  curriculumVersion   CurriculumVersion    @relation(fields: [curriculumVersionId], references: [id])
   semesterEnrollments SemesterEnrollment[]
   promotionDecisions  PromotionDecision[]
   // Note: elective selections relate to SemesterEnrollment, not directly
@@ -545,8 +429,7 @@ model StudentEnrollment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([organizationId, rollNumber])
-  @@unique([organizationId, id]) // composite-FK target for SemesterEnrollment
+  @@unique([rollNumber])
   @@index([userId])
   @@index([programId, status])
   @@map("student_enrollments")
@@ -564,10 +447,6 @@ enum SemesterEnrollmentStatus {
 
 model SemesterEnrollment {
   id                  String                   @id @default(uuid())
-  organizationId      String // NEW — denormalized from StudentEnrollment.organizationId.
-  // Needed to give AttendanceRecord/AssignmentSubmission/StudentElectiveSelection
-  // a tenant-consistent anchor, and to let this model carry composite FKs to
-  // SemesterCatalog/AcademicYear/Division instead of trusting the app.
   studentEnrollmentId String
   semesterCatalogId   String // WHICH curriculum semester (e.g. Semester 3 of IT-2024)
   academicYearId      String // WHICH real term this attempt happened in
@@ -575,11 +454,10 @@ model SemesterEnrollment {
   attemptNumber       Int                      @default(1) // 2nd time = a repeat
   status              SemesterEnrollmentStatus @default(IN_PROGRESS)
 
-  organization      Organization      @relation(fields: [organizationId], references: [id])
-  studentEnrollment StudentEnrollment @relation(fields: [organizationId, studentEnrollmentId], references: [organizationId, id], onDelete: Cascade)
-  semesterCatalog   SemesterCatalog   @relation(fields: [organizationId, semesterCatalogId], references: [organizationId, id])
-  academicYear      AcademicYear      @relation(fields: [organizationId, academicYearId], references: [organizationId, id])
-  division          Division          @relation(fields: [organizationId, divisionId], references: [organizationId, id])
+  studentEnrollment StudentEnrollment @relation(fields: [studentEnrollmentId], references: [id], onDelete: Cascade)
+  semesterCatalog   SemesterCatalog   @relation(fields: [semesterCatalogId], references: [id])
+  academicYear      AcademicYear      @relation(fields: [academicYearId], references: [id])
+  division          Division          @relation(fields: [divisionId], references: [id])
 
   openedByDecision      PromotionDecision?         @relation("DecisionOpensEnrollment")
   attendanceRecords     AttendanceRecord[]
@@ -591,9 +469,6 @@ model SemesterEnrollment {
   promotionDecisions PromotionDecision[] @relation("DecisionClosesEnrollment")
 
   @@unique([studentEnrollmentId, semesterCatalogId, attemptNumber])
-  @@unique([organizationId, id]) // composite-FK target for AttendanceRecord,
-  // AssignmentSubmission, StudentElectiveSelection
-  @@index([organizationId])
   @@index([divisionId, status])
   @@index([academicYearId, status])
   @@map("semester_enrollments")
@@ -606,16 +481,14 @@ enum PromotionBatchStatus {
 
 model PromotionBatch {
   id                String               @id @default(uuid())
-  organizationId    String
   divisionId        String
   academicYearId    String
   initiatedByUserId String
   status            PromotionBatchStatus @default(DRAFT)
   finalizedAt       DateTime?
 
-  organization Organization        @relation(fields: [organizationId], references: [id])
-  division     Division            @relation(fields: [organizationId, divisionId], references: [organizationId, id])
-  academicYear AcademicYear        @relation(fields: [organizationId, academicYearId], references: [organizationId, id])
+  division     Division            @relation(fields: [divisionId], references: [id])
+  academicYear AcademicYear        @relation(fields: [academicYearId], references: [id])
   initiatedBy  User                @relation(fields: [initiatedByUserId], references: [id])
   decisions    PromotionDecision[]
 
@@ -623,7 +496,7 @@ model PromotionBatch {
   updatedAt DateTime @updatedAt
   // status = FINALIZED must make `decisions` immutable — enforced in the
   // promotion service (check status before any decision mutation), not the
-  // DB. See ANALYSIS.md §L for why a trigger isn't worth it here.
+  // DB. Unchanged by tenancy removal.
 
   @@index([divisionId, status])
   @@map("promotion_batches")
@@ -650,19 +523,19 @@ model PromotionDecision {
 
   createdAt DateTime @default(now())
   // Deliberately no updatedAt — a promotion decision is an immutable audit
-  // record once made; it should never be edited after the fact. DB-level
-  // backstop: REVOKE UPDATE on this table for the app's runtime role (see
-  // migration.sql), same pattern as audit_logs.
+  // record once made. DB-level backstop: REVOKE UPDATE on this table for
+  // the app's runtime role (see migration.sql), same pattern as audit_logs.
 
   promotionBatch         PromotionBatch      @relation(fields: [promotionBatchId], references: [id], onDelete: Cascade)
   studentEnrollment      StudentEnrollment   @relation(fields: [studentEnrollmentId], references: [id])
   fromSemesterEnrollment SemesterEnrollment  @relation("DecisionClosesEnrollment", fields: [fromSemesterEnrollmentId], references: [id])
   toSemesterEnrollment   SemesterEnrollment? @relation("DecisionOpensEnrollment", fields: [toSemesterEnrollmentId], references: [id])
   decidedBy              User                @relation(fields: [decidedByUserId], references: [id])
-  // NOTE: does not enforce fromSemesterEnrollment/toSemesterEnrollment belong
-  // to the same studentEnrollmentId as this decision — three-way agreement
-  // across independent FKs, not expressible without a trigger. Enforce in
-  // the promotion service before insert (see ANALYSIS.md §G).
+  // NOTE: does not enforce fromSemesterEnrollment/toSemesterEnrollment
+  // belong to the same studentEnrollmentId as this decision — three-way
+  // agreement across independent FKs, not expressible without a trigger.
+  // Enforce in the promotion service before insert. Unchanged by tenancy
+  // removal.
 
   @@unique([promotionBatchId, studentEnrollmentId])
   @@index([studentEnrollmentId])
@@ -680,27 +553,22 @@ enum SubjectComponentType {
 
 model Subject {
   id                String  @id @default(uuid())
-  organizationId    String
   semesterCatalogId String
   electiveGroupId   String? // null for core subjects
   code              String
   name              String
   isElective        Boolean @default(false)
 
-  semesterCatalog    SemesterCatalog            @relation(fields: [organizationId, semesterCatalogId], references: [organizationId, id])
+  semesterCatalog    SemesterCatalog            @relation(fields: [semesterCatalogId], references: [id])
   electiveGroup      ElectiveGroup?             @relation(fields: [electiveGroupId], references: [id])
   components         SubjectComponent[]
   offerings          SubjectOffering[]
   electiveSelections StudentElectiveSelection[]
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([semesterCatalogId, code])
-  @@unique([organizationId, id]) // composite-FK target for SubjectOffering
-  @@index([organizationId])
   @@map("subjects")
 }
 
@@ -724,11 +592,11 @@ model ElectiveGroup {
   @@map("elective_groups")
 }
 
-// KNOWN SIMPLIFICATION (kept — see ANALYSIS.md §J): the unique constraint
-// below assumes exactly one selection per group per enrollment — correct for
-// the common maxSelect=1 case. If a group ever allows choosing 2+ electives,
-// drop the uniqueness and cap via an app-layer count check against
-// ElectiveGroup.maxSelect instead.
+// KNOWN SIMPLIFICATION (kept, unchanged by tenancy removal): the unique
+// constraint below assumes exactly one selection per group per enrollment —
+// correct for the common maxSelect=1 case. If a group ever allows choosing
+// 2+ electives, drop the uniqueness and cap via an app-layer count check
+// against ElectiveGroup.maxSelect instead.
 model StudentElectiveSelection {
   id                   String @id @default(uuid())
   semesterEnrollmentId String
@@ -738,9 +606,6 @@ model StudentElectiveSelection {
   semesterEnrollment SemesterEnrollment @relation(fields: [semesterEnrollmentId], references: [id], onDelete: Cascade)
   electiveGroup      ElectiveGroup      @relation(fields: [electiveGroupId], references: [id])
   subject            Subject            @relation(fields: [subjectId], references: [id])
-  // Deliberately no direct relation to StudentEnrollment (unchanged).
-  // Cross-curriculum guard (subject/group/enrollment must share one
-  // SemesterCatalog) stays service-layer — three-way join-path check.
 
   createdAt DateTime @default(now())
 
@@ -768,21 +633,18 @@ model SubjectComponent {
 // row per subject+division+term regardless of how many components/faculty.
 model SubjectOffering {
   id             String @id @default(uuid())
-  organizationId String
   subjectId      String
   divisionId     String
   academicYearId String
 
-  subject            Subject             @relation(fields: [organizationId, subjectId], references: [organizationId, id])
-  division           Division            @relation(fields: [organizationId, divisionId], references: [organizationId, id])
-  academicYear       AcademicYear        @relation(fields: [organizationId, academicYearId], references: [organizationId, id])
-  organization       Organization        @relation(fields: [organizationId], references: [id])
-  // Composite FKs on all three: guarantees organizationId = Subject's org =
-  // Division's org = AcademicYear's org, per the brief's explicit requirement.
+  subject      Subject      @relation(fields: [subjectId], references: [id])
+  division     Division     @relation(fields: [divisionId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
   // NOTE: does not enforce "Subject's Program == Division's Program" — that
   // requires walking Subject -> SemesterCatalog -> CurriculumVersion ->
-  // Program vs. Division -> Program, a 3-hop comparison. Service-layer check
-  // at offering-creation time.
+  // Program vs. Division -> Program, a 3-hop comparison. Service-layer
+  // check at offering-creation time, unchanged by tenancy removal.
+
   facultyAssignments FacultyAssignment[]
   timetableEntries   Timetable[]
   lectures           Lecture[]
@@ -793,8 +655,6 @@ model SubjectOffering {
   updatedAt DateTime @updatedAt
 
   @@unique([subjectId, divisionId, academicYearId])
-  @@unique([organizationId, id]) // composite-FK target for FacultyAssignment,
-  // Timetable, Lecture
   @@index([divisionId, academicYearId])
   @@map("subject_offerings")
 }
@@ -805,25 +665,19 @@ model SubjectOffering {
 // dimension, so no reason for this to be a list.
 model FacultyAssignment {
   id                 String @id @default(uuid())
-  organizationId     String // NEW — denormalized from SubjectOffering.organizationId.
-  // Needed so Timetable/Lecture can carry a composite FK proving the
-  // faculty assignment belongs to the same org as the room/timeslot they
-  // reference, without a multi-hop join inside a constraint.
   subjectOfferingId  String
   subjectComponentId String
   facultyUserId      String
 
-  organization     Organization     @relation(fields: [organizationId], references: [id])
-  subjectOffering  SubjectOffering  @relation(fields: [organizationId, subjectOfferingId], references: [organizationId, id], onDelete: Cascade)
+  subjectOffering  SubjectOffering  @relation(fields: [subjectOfferingId], references: [id], onDelete: Cascade)
   subjectComponent SubjectComponent @relation(fields: [subjectComponentId], references: [id])
   faculty          User             @relation(fields: [facultyUserId], references: [id])
-  // NOTE: does not verify facultyUserId belongs to this organization, or
-  // holds a faculty-capable role — that's an RBAC concern, not a plain FK
-  // (role membership is itself a table, not a boolean flag on User).
-  // Enforce via the RBAC service at assignment time (ANALYSIS.md §G).
-  // NOTE: does not verify subjectComponentId belongs to subjectOffering's
-  // Subject — 2-hop check (SubjectOffering -> Subject -> SubjectComponent),
-  // service-layer.
+  // NOTE: does not verify facultyUserId holds a faculty-capable role —
+  // that's an RBAC concern, not a plain FK (role membership is itself a
+  // table, not a boolean flag on User). Enforce via the RBAC service at
+  // assignment time. NOTE: does not verify subjectComponentId belongs to
+  // subjectOffering's Subject — 2-hop check, service-layer. Both unchanged
+  // by tenancy removal.
 
   timetableEntries Timetable[]
   lectures         Lecture[]
@@ -832,9 +686,7 @@ model FacultyAssignment {
   updatedAt DateTime @updatedAt
 
   @@unique([subjectOfferingId, subjectComponentId])
-  @@unique([organizationId, id]) // composite-FK target for Timetable, Lecture
   @@index([facultyUserId])
-  @@index([organizationId])
   @@map("faculty_assignments")
 }
 
@@ -845,11 +697,10 @@ enum RoomType {
 }
 
 model Room {
-  id             String   @id @default(uuid())
-  organizationId String
-  name           String
-  type           RoomType
-  capacity       Int
+  id       String   @id @default(uuid())
+  name     String
+  type     RoomType
+  capacity Int
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -857,10 +708,7 @@ model Room {
   timetableEntries Timetable[]
   lectures         Lecture[]
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-
-  @@unique([organizationId, name])
-  @@unique([organizationId, id]) // composite-FK target for Timetable, Lecture
+  @@unique([name])
   @@map("rooms")
 }
 
@@ -874,46 +722,37 @@ enum DayOfWeek {
 }
 
 model TimeSlot {
-  id             String    @id @default(uuid())
-  organizationId String
-  dayOfWeek      DayOfWeek
-  startTime      DateTime  @db.Time
-  endTime        DateTime  @db.Time
+  id        String    @id @default(uuid())
+  dayOfWeek DayOfWeek
+  startTime DateTime  @db.Time
+  endTime   DateTime  @db.Time
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   timetableEntries Timetable[]
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-
-  @@unique([organizationId, id]) // composite-FK target for Timetable
-  @@index([organizationId, dayOfWeek])
+  @@index([dayOfWeek])
   @@map("time_slots")
 }
 
 // The RECURRING pattern — "this slot happens every Tuesday 10-11am in Room
 // 204, for as long as effectiveTo is null."
 model Timetable {
-  id             String    @id @default(uuid())
-  organizationId String // NEW — denormalized, ties this row to one tenant
-  // directly so it can carry composite FKs to Room/TimeSlot/SubjectOffering/
-  // FacultyAssignment, and so the EXCLUDE conflict constraints in
-  // migration.sql don't need to join out to establish org scope.
-  divisionId     String // NEW — denormalized from subjectOffering.divisionId.
-  // Required for the "Division IT-A cannot have two simultaneous lectures"
-  // EXCLUDE constraint (migration.sql) — an exclusion constraint needs the
+  id         String    @id @default(uuid())
+  divisionId String // denormalized from subjectOffering.divisionId — required
+  // for the "Division IT-A cannot have two simultaneous lectures" EXCLUDE
+  // constraint (migration.sql): an exclusion constraint needs the
   // conflicting value directly on the row, it cannot join through
-  // subjectOffering at constraint-check time.
-  dayOfWeek      DayOfWeek // NEW — denormalized copy of timeSlot.dayOfWeek
-  startTime      DateTime  @db.Time // NEW — denormalized copy of timeSlot.startTime
-  endTime        DateTime  @db.Time // NEW — denormalized copy of timeSlot.endTime
-  // These three are copied from TimeSlot at write time, same reasoning as
-  // divisionId: the weekly-recurring EXCLUDE constraint in migration.sql
-  // needs the day/time on the Timetable row itself — it cannot join through
-  // timeSlotId to evaluate a conflict. This is safe because a Timetable row
-  // is closed (effectiveTo set) and a new one created on any change, never
-  // edited in place — so the copy never goes stale under an existing row.
+  // subjectOffering at constraint-check time. Unchanged by tenancy removal
+  // (this was never about tenancy — keep it).
+  dayOfWeek  DayOfWeek // denormalized copy of timeSlot.dayOfWeek
+  startTime  DateTime  @db.Time // denormalized copy of timeSlot.startTime
+  endTime    DateTime  @db.Time // denormalized copy of timeSlot.endTime
+  // These three are copied from TimeSlot at write time for the same
+  // EXCLUDE-constraint reason as divisionId above. Safe because a
+  // Timetable row is closed (effectiveTo set) and a new one created on any
+  // change, never edited in place.
 
   subjectOfferingId   String
   subjectComponentId  String
@@ -925,17 +764,18 @@ model Timetable {
   // row is closed, never edited in place
   isCancelled         Boolean   @default(false)
 
-  organization      Organization      @relation(fields: [organizationId], references: [id])
-  subjectOffering   SubjectOffering   @relation(fields: [organizationId, subjectOfferingId], references: [organizationId, id])
-  division          Division          @relation(fields: [organizationId, divisionId], references: [organizationId, id])
+  subjectOffering   SubjectOffering   @relation(fields: [subjectOfferingId], references: [id])
+  division          Division          @relation(fields: [divisionId], references: [id])
   subjectComponent  SubjectComponent  @relation(fields: [subjectComponentId], references: [id])
-  facultyAssignment FacultyAssignment @relation(fields: [organizationId, facultyAssignmentId], references: [organizationId, id])
-  timeSlot          TimeSlot          @relation(fields: [organizationId, timeSlotId], references: [organizationId, id])
-  room              Room              @relation(fields: [organizationId, roomId], references: [organizationId, id])
+  facultyAssignment FacultyAssignment @relation(fields: [facultyAssignmentId], references: [id])
+  timeSlot          TimeSlot          @relation(fields: [timeSlotId], references: [id])
+  room              Room              @relation(fields: [roomId], references: [id])
   // Room/Faculty/Division scheduling-conflict prevention is NOT expressible
   // as a Prisma relation or @@unique — see migration.sql for the
   // btree_gist EXCLUDE constraints that do the actual conflict rejection.
-  // The indexes below remain purely for query performance.
+  // Those constraints previously scoped conflicts per organizationId; they
+  // must be rewritten unscoped (a conflict anywhere in the college is a
+  // real conflict now — there's nothing to scope by).
 
   lectures Lecture[]
 
@@ -944,7 +784,6 @@ model Timetable {
 
   @@index([timeSlotId, roomId])
   @@index([subjectOfferingId])
-  @@index([organizationId])
   @@map("timetables")
 }
 
@@ -958,14 +797,14 @@ enum LectureStatus {
 // from a Timetable row; timetableId is nullable so an ad-hoc extra class
 // doesn't need a fake recurring pattern behind it.
 model Lecture {
-  id             String @id @default(uuid())
-  organizationId String // NEW — see Timetable.organizationId comment; same reasoning.
-  divisionId     String // NEW — see Timetable.divisionId comment; same reasoning.
-  facultyUserId  String // NEW — denormalized from facultyAssignment.facultyUserId.
-  // The EXCLUDE constraint for "faculty can't teach two overlapping lectures"
-  // needs the actual person, not the (offering, component) assignment row —
-  // the same faculty member could hold two different FacultyAssignment rows
-  // (different subjects) and still double-book themselves.
+  id            String @id @default(uuid())
+  divisionId    String // see Timetable.divisionId comment; same reasoning.
+  facultyUserId String // denormalized from facultyAssignment.facultyUserId.
+  // The EXCLUDE constraint for "faculty can't teach two overlapping
+  // lectures" needs the actual person, not the (offering, component)
+  // assignment row — the same faculty member could hold two different
+  // FacultyAssignment rows (different subjects) and still double-book
+  // themselves.
 
   timetableId         String?
   subjectOfferingId   String
@@ -977,27 +816,26 @@ model Lecture {
   endTime             DateTime      @db.Time
   status              LectureStatus @default(SCHEDULED)
 
-  organization      Organization       @relation(fields: [organizationId], references: [id])
-  division          Division           @relation(fields: [organizationId, divisionId], references: [organizationId, id])
+  division          Division           @relation(fields: [divisionId], references: [id])
   facultyUser       User               @relation("LectureFaculty", fields: [facultyUserId], references: [id])
   timetable         Timetable?         @relation(fields: [timetableId], references: [id])
-  subjectOffering   SubjectOffering    @relation(fields: [organizationId, subjectOfferingId], references: [organizationId, id])
+  subjectOffering   SubjectOffering    @relation(fields: [subjectOfferingId], references: [id])
   subjectComponent  SubjectComponent   @relation(fields: [subjectComponentId], references: [id])
-  facultyAssignment FacultyAssignment  @relation(fields: [organizationId, facultyAssignmentId], references: [organizationId, id])
-  room              Room               @relation(fields: [organizationId, roomId], references: [organizationId, id])
+  facultyAssignment FacultyAssignment  @relation(fields: [facultyAssignmentId], references: [id])
+  room              Room               @relation(fields: [roomId], references: [id])
   attendanceSession AttendanceSession?
   // As with Timetable: Room/Faculty/Division double-booking prevention is a
-  // Postgres EXCLUDE constraint in migration.sql, not expressible here.
-  // subjectComponent belonging to subjectOffering.subject, and
-  // facultyAssignment belonging to the same offering/component, remain
-  // service-layer (multi-hop agreement checks) — see ANALYSIS.md §G.
+  // Postgres EXCLUDE constraint in migration.sql (must be rewritten
+  // unscoped, same as Timetable's). subjectComponent belonging to
+  // subjectOffering.subject, and facultyAssignment belonging to the same
+  // offering/component, remain service-layer (multi-hop agreement checks) —
+  // unchanged by tenancy removal.
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([subjectOfferingId, scheduledDate, startTime])
   @@index([facultyAssignmentId, scheduledDate])
-  @@index([organizationId])
   @@map("lectures")
 }
 
@@ -1043,10 +881,10 @@ model AttendanceRecord {
   markedByUserId       String
   correctedAt          DateTime?
   correctionReason     String?
-  correctedByUserId    String? // NEW — a correction changes an academic
-  // record after the fact; who made it must be independently attributable
-  // from who marked it originally (markedByUserId), for audit purposes.
-  // Nullable because most records are never corrected.
+  correctedByUserId    String? // a correction changes an academic record
+  // after the fact; who made it must be independently attributable from
+  // who marked it originally (markedByUserId), for audit purposes. Nullable
+  // because most records are never corrected.
 
   attendanceSession  AttendanceSession  @relation(fields: [attendanceSessionId], references: [id], onDelete: Cascade)
   semesterEnrollment SemesterEnrollment @relation(fields: [semesterEnrollmentId], references: [id])
@@ -1055,9 +893,9 @@ model AttendanceRecord {
   // Eligibility guard (SemesterEnrollment.division/academicYear must match
   // Lecture.subjectOffering.division/academicYear) is NOT DB-expressible —
   // two independent join paths, not a shared FK. Enforced in the attendance
-  // service at record-creation time (ANALYSIS.md §G/§K). A DB CHECK that
-  // correctedAt and correctionReason are both set or both null is added in
-  // migration.sql.
+  // service at record-creation time, unchanged by tenancy removal. A DB
+  // CHECK that correctedAt and correctionReason are both set or both null
+  // remains in migration.sql, untouched by this refactor.
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1070,6 +908,7 @@ model AttendanceRecord {
 // DOMAIN 7 — ASSIGNMENTS & STUDY MATERIAL
 // Attachments deliberately do NOT get their own tables (no
 // AssignmentAttachment / StudyMaterialAttachment) — see Document below.
+// Unaffected by the tenancy removal — never had organizationId.
 
 model Assignment {
   id                String   @id @default(uuid())
@@ -1114,10 +953,11 @@ model AssignmentSubmission {
   assignment         Assignment         @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   semesterEnrollment SemesterEnrollment @relation(fields: [semesterEnrollmentId], references: [id])
   gradedBy           User?              @relation(fields: [gradedByUserId], references: [id])
-  // marksAwarded <= assignment.maxMarks: a CHECK constraint cannot reference
-  // another table's column in Postgres. Enforced in the grading service
-  // before UPDATE (ANALYSIS.md §G). Cross-division submission guard is the
-  // same class of check as AttendanceRecord's eligibility guard — service-layer.
+  // marksAwarded <= assignment.maxMarks: a CHECK constraint cannot
+  // reference another table's column in Postgres. Enforced in the grading
+  // service before UPDATE. Cross-division submission guard is the same
+  // class of check as AttendanceRecord's eligibility guard — service-layer,
+  // unchanged.
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1149,7 +989,6 @@ model StudyMaterial {
 
 model Notice {
   id              String    @id @default(uuid())
-  organizationId  String
   title           String
   body            String
   publishedAt     DateTime?
@@ -1159,11 +998,10 @@ model Notice {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  organization Organization     @relation(fields: [organizationId], references: [id])
-  createdBy    User             @relation(fields: [createdByUserId], references: [id])
-  audiences    NoticeAudience[]
+  createdBy User             @relation(fields: [createdByUserId], references: [id])
+  audiences NoticeAudience[]
 
-  @@index([organizationId, publishedAt])
+  @@index([publishedAt])
   @@map("notices")
 }
 
@@ -1174,8 +1012,9 @@ model NoticeAudience {
   id       String    @id @default(uuid())
   noticeId String
   scope    ScopeType
-  scopeId  String? // null when scope = ORGANIZATION — enforced via CHECK in
-  // migration.sql. Polymorphic FK to Department OR Division depending on
+  scopeId  String? // null when scope = COLLEGE — enforced via CHECK in
+  // migration.sql (update the enum literal there from ORGANIZATION to
+  // COLLEGE). Polymorphic FK to Department OR Division depending on
   // `scope` remains service-layer, same reasoning as RoleAssignment.scopeId.
 
   notice Notice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
@@ -1198,27 +1037,21 @@ enum NotificationType {
 // students shouldn't duplicate title/body 500 times — one Notification row,
 // many per-user delivery/read-state rows.
 model Notification {
-  id             String           @id @default(uuid())
-  organizationId String
-  type           NotificationType
-  title          String
-  body           String
-  metadata       Json? // polymorphic reference payload — e.g. { assignmentId }
+  id       String           @id @default(uuid())
+  type     NotificationType
+  title    String
+  body     String
+  metadata Json? // polymorphic reference payload — e.g. { assignmentId }
 
   createdAt DateTime @default(now())
 
-  organization Organization            @relation(fields: [organizationId], references: [id])
-  recipients   NotificationRecipient[]
-  // Notification.organizationId matching recipient.user.organizationId is a
-  // tenant boundary spanning Notification -> NotificationRecipient -> User,
-  // a 2-hop check. Not composite-FK-able without denormalizing organizationId
-  // onto NotificationRecipient too, which would only move the same check one
-  // hop rather than remove it (User.organizationId is still authoritative).
-  // Enforced in the notification-fanout service when building recipient
-  // rows: only ever query recipients from `WHERE user.organizationId =
-  // notification.organizationId`, never accept an arbitrary userId list.
+  recipients NotificationRecipient[]
+  // Fan-out no longer needs a tenant-boundary check when building recipient
+  // rows (there is only one college's worth of users) — but the
+  // notification-fanout service still needs to build the correct recipient
+  // list from the intended scope/audience, unchanged in spirit.
 
-  @@index([organizationId, type])
+  @@index([type])
   @@map("notifications")
 }
 
@@ -1251,26 +1084,25 @@ enum CalendarEventType {
 
 model CalendarEvent {
   id              String            @id @default(uuid())
-  organizationId  String
   type            CalendarEventType
   title           String
   description     String?
   startAt         DateTime
   endAt           DateTime
-  scopeType       ScopeType         @default(ORGANIZATION) // reuses the
-  // existing RBAC/Notice scope enum rather than inventing a new one
-  scopeId         String? // null when scopeType = ORGANIZATION — enforced
-  // via CHECK in migration.sql, same as NoticeAudience/RoleAssignment.
+  scopeType       ScopeType         @default(COLLEGE) // reuses the existing
+  // RBAC/Notice scope enum rather than inventing a new one
+  scopeId         String? // null when scopeType = COLLEGE — enforced via
+  // CHECK in migration.sql (update the enum literal there), same as
+  // NoticeAudience/RoleAssignment.
   createdByUserId String
 
   deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  createdBy    User         @relation(fields: [createdByUserId], references: [id])
+  createdBy User @relation(fields: [createdByUserId], references: [id])
 
-  @@index([organizationId, startAt])
+  @@index([startAt])
   @@index([scopeType, scopeId])
   @@map("calendar_events")
 }
@@ -1286,7 +1118,6 @@ enum DocumentOwnerType {
 
 model Document {
   id               String            @id @default(uuid())
-  organizationId   String
   ownerType        DocumentOwnerType
   ownerId          String
   fileName         String
@@ -1299,19 +1130,18 @@ model Document {
   deletedAt DateTime?
   createdAt DateTime  @default(now())
 
-  uploadedBy   User         @relation(fields: [uploadedByUserId], references: [id])
-  organization Organization @relation(fields: [organizationId], references: [id])
+  uploadedBy User @relation(fields: [uploadedByUserId], references: [id])
   // ownerId is polymorphic (points at Assignment, AssignmentSubmission,
   // StudyMaterial, or Notice depending on ownerType) — no real FK is
   // possible without a generic ownership table, which is not worth the
   // complexity for four owner types. The document service MUST verify: the
-  // owner row exists, the owner belongs to this organizationId, ownerType is
-  // one of the four valid values, and uploadedByUserId belongs to the same
-  // organization — before persisting. MIME-type validation and file-size
-  // sanity checks happen outside the DB entirely (at upload time); object
-  // storage remains the sole source of file bytes.
+  // owner row exists and ownerType is one of the four valid values, before
+  // persisting — the previous "owner belongs to this organizationId" check
+  // is dropped entirely since there is nothing left to scope by. MIME-type
+  // validation and file-size sanity checks continue to happen outside the
+  // DB, at upload time.
 
-  @@index([organizationId, ownerType, ownerId])
+  @@index([ownerType, ownerId])
   @@map("documents")
 }
 
@@ -1337,17 +1167,16 @@ enum AuditAction {
 }
 
 model AuditLog {
-  id             String      @id @default(uuid())
-  organizationId String?
-  actorUserId    String?
-  action         AuditAction
-  entityType     String
+  id          String      @id @default(uuid())
+  actorUserId String?
+  action      AuditAction
+  entityType  String
 
   entityId  String
   oldValue  Json?
   newValue  Json?
-  requestId String? // NEW — correlates an audit row back to the exact HTTP
-  // request that produced it (Phase 10). Populated automatically from the
+  requestId String? // correlates an audit row back to the exact HTTP
+  // request that produced it. Populated automatically from the
   // AsyncLocalStorage log context by auditService.record/recordTx; callers
   // only need to pass it explicitly if recording outside a request (a job).
   ipAddress String?
@@ -1355,45 +1184,39 @@ model AuditLog {
   // Deliberately no updatedAt: append-only. oldValue/newValue must NEVER
   // contain passwordHash, refresh/session token values, or verification
   // token hashes — the audit-writing service is responsible for redacting
-  // these fields before serializing a diff. DB-level append-only enforcement
-  // (REVOKE UPDATE/DELETE for the app's runtime role) requires a separate
-  // migration/runtime-role from the migration/owner role — NOT YET
-  // CONFIGURED in this deployment (single dev role). See
-  // docs/architecture/production-deployment.md for the required production
-  // model. Until that separation exists, append-only is enforced only by
-  // the application never exposing an update/delete endpoint for this table
-  // — a real gap, not a solved one; do not claim otherwise.
+  // these fields before serializing a diff. DB-level append-only
+  // enforcement (REVOKE UPDATE/DELETE for the app's runtime role) requires
+  // a separate migration/runtime-role from the migration/owner role — NOT
+  // YET CONFIGURED in this deployment (single dev role), unchanged by this
+  // refactor. Until that separation exists, append-only is enforced only by
+  // the application never exposing an update/delete endpoint for this
+  // table — a real gap, not a solved one; do not claim otherwise.
 
   createdAt DateTime @default(now())
 
-  organization Organization? @relation(fields: [organizationId], references: [id])
-  actor        User?         @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
 
-  @@index([organizationId, entityType, entityId])
-  @@index([organizationId, createdAt])
-  @@index([organizationId, action, createdAt])
-  @@index([actorUserId])
+  @@index([entityType, entityId])
   @@index([createdAt])
+  @@index([action, createdAt])
+  @@index([actorUserId])
   @@map("audit_logs")
 }
 
-model OrganizationSetting {
-  id             String @id @default(uuid())
-  organizationId String
-  key            String
-  value          Json // intentionally loose — supports any setting shape
-  // (string, number, boolean, nested object) without a migration per new key.
-  // Recommendation (application-level, not a schema change): back this with
-  // a typed settings registry/validation layer in the service — a known set
-  // of `key` -> expected-shape mappings, validated on write — rather than
-  // normalizing every setting into its own relational column. Core business
-  // data (everything above) stays relational; this stays JSON deliberately.
+model SystemSetting {
+  id    String @id @default(uuid())
+  key   String @unique
+  value Json // intentionally loose — supports any setting shape (string,
+  // number, boolean, nested object) without a migration per new key.
+  // Recommendation (application-level, not a schema change): back this
+  // with a typed settings registry/validation layer in the service — a
+  // known set of `key` -> expected-shape mappings, validated on write —
+  // rather than normalizing every setting into its own relational column.
+  // Core business data (everything above) stays relational; this stays
+  // JSON deliberately.
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-
-  @@unique([organizationId, key])
-  @@map("organization_settings")
+  @@map("system_settings")
 }

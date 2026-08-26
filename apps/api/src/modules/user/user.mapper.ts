@@ -5,7 +5,6 @@ import type { UserProfileDTO } from './user.types.js';
 export function toUserProfile(user: User): UserProfileDTO {
   return {
     id: user.id,
-    organizationId: user.organizationId,
     email: user.email,
     firstName: user.firstName,
     middleName: user.middleName,

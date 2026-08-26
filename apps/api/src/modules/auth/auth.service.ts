@@ -17,12 +17,12 @@ export class AuthService {
   // Login
 
   async login(params: LoginParams): Promise<LoginResult> {
-    const { organizationId, email, password, requestMeta } = params;
-    const user = await authRepository.findUserByOrgAndEmail(organizationId, email);
+    const { email, password, requestMeta } = params;
+    const user = await authRepository.findUserByEmail(email);
 
     if (!user) {
       await verifyDummyPassword(password);
-      authLogger.warn('Login attempt for non-existent user', { organizationId, email });
+      authLogger.warn('Login attempt for non-existent user', { email });
       throw ApiError.unauthorized('Invalid email or password', ErrorCode.INVALID_CREDENTIALS);
     }
 
@@ -54,7 +54,6 @@ export class AuthService {
     const tokens = await this.issueTokenPair(updatedUser.id, session.id);
 
     await recordAudit({
-      organizationId: updatedUser.organizationId,
       actorUserId: updatedUser.id,
       action: 'LOGIN',
       entityType: AuditEntityType.USER,
@@ -176,7 +175,6 @@ export class AuthService {
         sessionId: existingToken.sessionId,
       });
       await recordAudit({
-        organizationId: null,
         actorUserId: null,
         action: 'OTHER',
         entityType: AuditEntityType.SESSION,
@@ -223,7 +221,6 @@ export class AuthService {
   ): Promise<void> {
     await authRepository.revokeSession(sessionId);
     await recordAudit({
-      organizationId: null,
       actorUserId,
       action: 'LOGOUT',
       entityType: AuditEntityType.SESSION,
@@ -289,7 +286,6 @@ export class AuthService {
     await authRepository.markVerificationTokenUsed(verificationToken.id);
 
     await recordAudit({
-      organizationId: user.organizationId,
       actorUserId: user.id,
       action: 'UPDATE',
       entityType: AuditEntityType.USER,
@@ -302,8 +298,8 @@ export class AuthService {
 
   // Password reset
 
-  async requestPasswordReset(organizationId: string, email: string): Promise<void> {
-    const user = await authRepository.findUserByOrgAndEmail(organizationId, email);
+  async requestPasswordReset(email: string): Promise<void> {
+    const user = await authRepository.findUserByEmail(email);
 
     if (user && user.status !== 'ARCHIVED') {
       const rawToken = generateOpaqueToken();
@@ -320,7 +316,6 @@ export class AuthService {
       authLogger.info('Password reset token issued', { userId: user.id });
     } else {
       authLogger.info('Password reset requested for unknown/archived account', {
-        organizationId,
         email,
       });
     }
@@ -350,7 +345,6 @@ export class AuthService {
     await authRepository.revokeAllSessionsForUser(user.id);
 
     await recordAudit({
-      organizationId: user.organizationId,
       actorUserId: user.id,
       action: 'UPDATE',
       entityType: AuditEntityType.USER,

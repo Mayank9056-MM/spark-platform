@@ -7,34 +7,43 @@ import type { PermissionKey } from '../authorization/authorization.types.js';
 import type { PermissionDTO, PermissionSummaryDTO } from './permission.types.js';
 
 /**
- * Persistence → DTO boundary for the Permission domain. This must be the
- * ONLY place a Prisma `Permission` row is shaped into `PermissionDTO` /
- * `PermissionSummaryDTO` — route every Permission-returning endpoint
- * through this file, the same convention `auth.mapper.ts`'s `toPublicUser`
- * establishes for `User`.
+ * Persistence → DTO boundary for the Permission domain.
  *
- * Permission is a global, non-organization-scoped catalog (see
- * schema.prisma / permission.types.ts) — this mapper never introduces an
- * `organizationId` field.
+ * This is the only place where a persisted Prisma Permission row should be
+ * shaped into PermissionDTO or PermissionSummaryDTO.
+ *
+ * The mapper is deterministic and side-effect free:
+ *
+ * - no database queries
+ * - no repository/service calls
+ * - no authorization decisions
+ * - no audit operations
+ * - no mutation of the input
+ *
+ * Permissions are global capability definitions in the single-college
+ * architecture. They are not scoped to a college, department, division,
+ * user, or role.
+ *
+ * Scope is applied through RoleAssignment, not Permission.
  */
 
 /**
- * `Permission.key` is an unconstrained, globally-unique `string` column in
- * the database — nothing at the schema level enforces the
- * `resource:action` template shape. `PermissionKey` (authorization.types.ts)
- * is a compile-time-only template-literal type with no runtime brand and
- * no exported validator/parser in that file to reuse.
+ * Converts the persisted Permission.key string into the domain
+ * PermissionKey type.
  *
- * Every write path that exists today (`permission.repository.ts`'s
- * `create`/`upsertByKey`) constructs `key` exclusively as
- * `` `${resource}:${action}` `` from typed `AuthorizationResource`/
- * `AuthorizationAction` values, so a row read back out is expected to
- * already match the pattern. This cast documents that expectation rather
- * than inventing a second, competing runtime validation system inside the
- * mapper. It is a real gap, not a solved one: a row written by any future
- * path that bypasses the repository (a manual SQL fix, a bad migration)
- * would not be caught here. See the final report's "PermissionKey
- * Decision" note.
+ * Permission.key is persisted as a string, while PermissionKey is a
+ * compile-time template-literal type.
+ *
+ * All application write paths currently construct permission keys from
+ * typed AuthorizationResource and AuthorizationAction values using:
+ *
+ *   `${resource}:${action}`
+ *
+ * Therefore the mapper preserves that established domain contract rather
+ * than introducing a second runtime parser or validator.
+ *
+ * This is intentionally a type-level boundary. It does not transform,
+ * normalize, or modify the persisted key.
  */
 function toPermissionKey(key: string): PermissionKey {
   return key as PermissionKey;
@@ -50,6 +59,11 @@ export function toPermissionDTO(permission: Permission): PermissionDTO {
   };
 }
 
+/**
+ * Maps a Permission persistence model to its lightweight summary DTO.
+ *
+ * Only fields defined by PermissionSummaryDTO are exposed.
+ */
 export function toPermissionSummaryDTO(permission: Permission): PermissionSummaryDTO {
   return {
     id: permission.id,
@@ -58,10 +72,16 @@ export function toPermissionSummaryDTO(permission: Permission): PermissionSummar
   };
 }
 
+/**
+ * Maps a collection of Permission records to PermissionDTOs.
+ */
 export function toPermissionDTOList(permissions: readonly Permission[]): PermissionDTO[] {
   return permissions.map(toPermissionDTO);
 }
 
+/**
+ * Maps a collection of Permission records to lightweight summary DTOs.
+ */
 export function toPermissionSummaryDTOList(
   permissions: readonly Permission[],
 ): PermissionSummaryDTO[] {

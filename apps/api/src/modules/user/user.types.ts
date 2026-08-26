@@ -1,7 +1,6 @@
 import type { User, UserStatus } from '@spark/database';
 
 export interface CreateUserInput {
-  organizationId: string;
   email: string;
   firstName: string;
   middleName?: string | undefined;
@@ -16,7 +15,6 @@ export interface UpdateUserInput {
 }
 
 export interface ListUsersFilters {
-  organizationId: string;
   search?: string | undefined;
   status?: UserStatus | undefined;
 }
@@ -43,7 +41,6 @@ export interface ListUsersResult {
  */
 export interface UserProfileDTO {
   id: string;
-  organizationId: string;
   email: string;
   firstName: string;
   middleName: string | null;

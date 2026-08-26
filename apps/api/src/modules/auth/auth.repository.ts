@@ -50,10 +50,9 @@ export class AuthRepository {
    * repository method's job is only "does this identity exist," not
    * "is this identity allowed to log in right now."
    */
-  async findUserByOrgAndEmail(organizationId: string, email: string): Promise<User | null> {
+  async findUserByEmail(email: string): Promise<User | null> {
     return prisma.user.findFirst({
       where: {
-        organizationId,
         email: normalizeEmail(email),
         deletedAt: null,
       },

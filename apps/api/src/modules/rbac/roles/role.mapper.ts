@@ -17,16 +17,15 @@ import type { RoleDTO, RoleSummaryDTO, RoleWithPermissionsDTO } from './role.typ
  *
  * Deterministic and side-effect free: no Prisma queries, no repository/
  * service calls, no authorization decisions, no audit logging, no
- * mutation of the input record. `organizationId` and `isSystemDefined`
- * are preserved exactly as supplied — this file makes no tenant or
- * system-role policy decisions; those belong to role.service.ts /
- * authorization.service.ts.
+ * mutation of the input record. `isSystemDefined` is preserved exactly as
+ * supplied — this file makes no system-role policy decisions; those
+ * belong to role.service.ts / authorization.service.ts. There is no
+ * tenant field to preserve or omit — Role carries none.
  */
 
 export function toRoleDTO(role: Role): RoleDTO {
   return {
     id: role.id,
-    organizationId: role.organizationId,
     key: role.key,
     displayName: role.displayName,
     isSystemDefined: role.isSystemDefined,
@@ -39,7 +38,6 @@ export function toRoleDTO(role: Role): RoleDTO {
 export function toRoleSummaryDTO(role: Role): RoleSummaryDTO {
   return {
     id: role.id,
-    organizationId: role.organizationId,
     key: role.key,
     displayName: role.displayName,
   };
@@ -56,7 +54,6 @@ export function toRoleSummaryDTO(role: Role): RoleSummaryDTO {
 export function toRoleWithPermissionsDTO(role: RoleWithPermissionsRecord): RoleWithPermissionsDTO {
   return {
     id: role.id,
-    organizationId: role.organizationId,
     key: role.key,
     displayName: role.displayName,
     isSystemDefined: role.isSystemDefined,

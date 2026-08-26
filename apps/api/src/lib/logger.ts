@@ -19,3 +19,6 @@ export const shutdownLogger = createChildLogger({ component: 'shutdown' });
 export const authLogger = createChildLogger({ component: 'auth' });
 export const auditLogger = createChildLogger({ component: 'audit' });
 export const userLogger = createChildLogger({ component: 'user' });
+export const roleAssignmentLogger = createChildLogger({ component: 'role-assignment' });
+export const permissionLogger = createChildLogger({ component: 'permission' });
+export const roleLogger = createChildLogger({ component: 'role' });

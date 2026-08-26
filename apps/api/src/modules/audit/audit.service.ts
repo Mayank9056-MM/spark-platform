@@ -27,7 +27,7 @@ function withRequestId(input: RecordAuditInput): RecordAuditInput {
  *
  * Do NOT use this for security-sensitive/state-changing operations —
  * RoleAssignment changes, user deactivation, password events, promotion
- * finalization, attendance correction, organization setting changes. Those
+ * finalization, attendance correction. Those
  * MUST use recordTx() below so the business write and the audit write
  * succeed or fail together. This distinction is the actual policy asked
  * for in Phase 10/"Audit Failure Policy" — not a style preference.

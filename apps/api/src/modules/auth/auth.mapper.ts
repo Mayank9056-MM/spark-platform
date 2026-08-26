@@ -13,7 +13,6 @@ import type { LoginResponseDTO, SessionSummaryDTO, UserPublicDTO } from './auth.
 export function toPublicUser(user: User): UserPublicDTO {
   return {
     id: user.id,
-    organizationId: user.organizationId,
     email: user.email,
     firstName: user.firstName,
     middleName: user.middleName,
