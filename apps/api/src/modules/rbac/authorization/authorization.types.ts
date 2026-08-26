@@ -17,7 +17,6 @@ import type { ErrorCode } from '../../../common/errors/ErrorCodes.js';
 // Domain primitives
 // ─────────────────────────────────────────────────────────────────────────
 
-export type OrganizationId = string;
 export type UserId = string;
 export type ResourceId = string;
 
@@ -46,11 +45,6 @@ export type PermissionKey = `${AuthorizationResource}:${AuthorizationAction}`;
 // Scope context
 // ─────────────────────────────────────────────────────────────────────────
 
-/**
- * Mirrors the Prisma `ScopeType` enum exactly — do not add scope types
- * the schema doesn't yet define. `scopeId` is required everywhere the
- * schema's CHECK constraint requires it (i.e. everywhere but ORGANIZATION).
- */
 export type ScopeContext =
   | { readonly type: 'COLLEGE' }
   | { readonly type: 'DEPARTMENT'; readonly departmentId: string }
@@ -62,7 +56,6 @@ export type ScopeContext =
 
 export interface AuthorizationSubject {
   readonly userId: UserId;
-  readonly organizationId: OrganizationId;
 }
 
 /**
