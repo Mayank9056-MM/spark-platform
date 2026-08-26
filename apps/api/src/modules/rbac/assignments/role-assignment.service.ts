@@ -6,6 +6,7 @@ import { prisma } from '../../../lib/prisma.js';
 import { recordAuditTx } from '../../audit/audit.service.js';
 import { AuditEntityType } from '../../audit/audit.types.js';
 import { userRepository } from '../../user/user.repository.js';
+import type { UserId } from '../authorization/authorization.types.js';
 import { roleRepository } from '../roles/role.repository.js';
 import { scopeService } from '../scopes/scope.service.js';
 
@@ -153,6 +154,26 @@ export class RoleAssignmentService {
       roleAssignments: toRoleAssignmentDTOList(result.roleAssignments),
       total: result.total,
     };
+  }
+
+  /**
+   * Returns the subject's currently active role assignments — validFrom
+   * <= now and (validUntil is null or validUntil > now) — mapped to the
+   * domain DTO shape (including the domain ScopeContext derived from the
+   * persisted flat scopeType/scopeId columns, not the raw Prisma row).
+   *
+   * This exists specifically for authorization.service.ts, which needs a
+   * user's active grants to evaluate an authorization request. It must
+   * not query Prisma directly or re-derive the active-assignment time
+   * window itself — both already belong to roleAssignmentRepository.
+   * findManyByUser. This method is the minimal service-layer read that
+   * lets authorization.service.ts stay within the established
+   * repository/service boundary while still getting ScopeContext-shaped
+   * results (via the existing mapper) rather than flat persistence rows.
+   */
+  async getActiveAssignmentsForUser(userId: UserId): Promise<RoleAssignmentDTO[]> {
+    const assignments = await roleAssignmentRepository.findManyByUser(userId, true);
+    return toRoleAssignmentDTOList(assignments);
   }
 
   // ── Revoke ────────────────────────────────────────────────────────
