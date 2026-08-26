@@ -245,6 +245,58 @@ export class PermissionRepository {
 
     return [...permissionsById.values()];
   }
+
+  /**
+   * Resolves the Permissions granted by a set of Role IDs, grouped by the
+   * role that grants each permission — as opposed to
+   * resolvePermissionsForRoles, which deduplicates into a single flat
+   * list and discards which role contributed which permission.
+   *
+   * This exists specifically for authorization.service.ts's requirement
+   * that a requested permission and a requested scope must be evaluated
+   * from the SAME role assignment: combining a permission granted by one
+   * role with a scope granted by a different role would be a security
+   * defect. Grouping by roleId lets the caller answer "does THIS role
+   * grant the requested permission" without a second query per role.
+   *
+   * Performs the same single RolePermission join query as
+   * resolvePermissionsForRoles, so no additional round trips are
+   * introduced. A permission cannot appear twice for the same role — the
+   * composite primary key on RolePermission (roleId, permissionId)
+   * prevents duplicate rows — so no per-role deduplication step is
+   * needed beyond the natural shape of the join.
+   */
+  async resolvePermissionsForRolesGrouped(
+    input: ResolvePermissionsForRolesInput,
+  ): Promise<Map<string, Permission[]>> {
+    if (input.roleIds.length === 0) {
+      return new Map();
+    }
+
+    const links = await prisma.rolePermission.findMany({
+      where: {
+        roleId: {
+          in: [...input.roleIds],
+        },
+      },
+      include: {
+        permission: true,
+      },
+    });
+
+    const permissionsByRole = new Map<string, Permission[]>();
+
+    for (const link of links) {
+      const existing = permissionsByRole.get(link.roleId);
+      if (existing) {
+        existing.push(link.permission);
+      } else {
+        permissionsByRole.set(link.roleId, [link.permission]);
+      }
+    }
+
+    return permissionsByRole;
+  }
 }
 
 export const permissionRepository = new PermissionRepository();
