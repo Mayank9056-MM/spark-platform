@@ -68,8 +68,8 @@ export interface AuthorizationContext {
   readonly subject: AuthorizationSubject;
   readonly action: AuthorizationAction;
   readonly resource: AuthorizationResource;
-  readonly resourceId?: ResourceId;
-  readonly scope?: ScopeContext;
+  readonly resourceId?: ResourceId | undefined;
+  readonly scope?: ScopeContext | undefined;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -6,7 +6,6 @@ declare global {
       user?: {
         id: string;
         sessionId: string;
-        organizationId?: string;
       };
       valid?: {
         body?: unknown;
