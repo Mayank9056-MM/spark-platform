@@ -43,12 +43,3 @@ export type ScopeType = ScopeContext['type'];
  * as plain strings.
  */
 export type DepartmentId = string;
-
-/**
- * Identifier for a Division used as a scope target.
- *
- * This is intentionally an alias of string rather than a branded type
- * because the existing database/domain model represents Division IDs
- * as plain strings.
- */
-export type DivisionId = string;
