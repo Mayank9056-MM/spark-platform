@@ -47,8 +47,4 @@ import type { ScopeType } from './scopes/scope.types.js';
  * that relies on this list for a complete scope enumeration would
  * otherwise silently omit the new type.
  */
-export const SCOPE_HIERARCHY: readonly ScopeType[] = Object.freeze([
-  'COLLEGE',
-  'DEPARTMENT',
-  'DIVISION',
-]);
+export const SCOPE_HIERARCHY: readonly ScopeType[] = Object.freeze(['COLLEGE', 'DEPARTMENT']);
