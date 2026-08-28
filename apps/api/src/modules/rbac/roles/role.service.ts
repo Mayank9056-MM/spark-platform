@@ -266,6 +266,18 @@ export class RoleService {
       throw ApiError.notFound('Role not found', ErrorCode.RECORD_NOT_FOUND);
     }
 
+    /**
+     * System-defined roles' permission sets are established exclusively
+     * by the seed/bootstrap mechanism (see packages/database's permission
+     * seed). Allowing this endpoint to alter them would let any actor
+     * holding role:update silently change what the baseline
+     * administrative role can do. Mirrors archiveRole's existing
+     * isSystemDefined protection below.
+     */
+    if (role.isSystemDefined) {
+      throw ApiError.badRequest('System-defined roles cannot have their permissions modified');
+    }
+
     const link = await permissionService.assignToRole(actorUserId, {
       roleId,
       permissionId,
@@ -286,7 +298,6 @@ export class RoleService {
    * Role existence is checked here before delegating the actual
    * RolePermission mutation to PermissionService.
    */
-
   async revokePermissionFromRole(
     actorUserId: string,
     roleId: RoleId,
@@ -295,6 +306,10 @@ export class RoleService {
     const role = await roleRepository.findById(roleId);
     if (!role) {
       throw ApiError.notFound('Role not found', ErrorCode.RECORD_NOT_FOUND);
+    }
+
+    if (role.isSystemDefined) {
+      throw ApiError.badRequest('System-defined roles cannot have their permissions modified');
     }
 
     await permissionService.revokeFromRole(actorUserId, roleId, permissionId);
