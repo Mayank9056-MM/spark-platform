@@ -2,7 +2,7 @@
 CREATE TYPE "UserStatus" AS ENUM ('PENDING_ACTIVATION', 'ACTIVE', 'SUSPENDED', 'LOCKED', 'DEACTIVATED', 'ARCHIVED');
 
 -- CreateEnum
-CREATE TYPE "ScopeType" AS ENUM ('COLLEGE', 'DEPARTMENT', 'DIVISION');
+CREATE TYPE "ScopeType" AS ENUM ('COLLEGE', 'DEPARTMENT');
 
 -- CreateEnum
 CREATE TYPE "VerificationPurpose" AS ENUM ('ACCOUNT_ACTIVATION', 'INVITE_USER', 'PASSWORD_RESET', 'EMAIL_CHANGE');
@@ -11,13 +11,13 @@ CREATE TYPE "VerificationPurpose" AS ENUM ('ACCOUNT_ACTIVATION', 'INVITE_USER', 
 CREATE TYPE "CurriculumStatus" AS ENUM ('DRAFT', 'ACTIVE', 'RETIRED');
 
 -- CreateEnum
-CREATE TYPE "AdmissionType" AS ENUM ('REGULAR', 'LATERAL_ENTRY', 'MANAGEMENT_QUOTA', 'GOVERNMENT_QUOTA');
+CREATE TYPE "AdmissionType" AS ENUM ('NORMAL', 'LATERAL', 'EXCEPTION');
 
 -- CreateEnum
 CREATE TYPE "AdmissionStatus" AS ENUM ('CONFIRMED', 'CANCELLED');
 
 -- CreateEnum
-CREATE TYPE "EnrollmentType" AS ENUM ('REGULAR', 'LATERAL_ENTRY', 'READMISSION');
+CREATE TYPE "AdmissionQuota" AS ENUM ('GOVERNMENT_QUOTA', 'MANAGEMENT_QUOTA');
 
 -- CreateEnum
 CREATE TYPE "StudentLifecycleStatus" AS ENUM ('ACTIVE', 'ON_GAP_YEAR', 'WITHDRAWN', 'DISCONTINUED', 'GRADUATED', 'ALUMNI');
@@ -238,26 +238,14 @@ CREATE TABLE "academic_years" (
 );
 
 -- CreateTable
-CREATE TABLE "divisions" (
-    "id" TEXT NOT NULL,
-    "programId" TEXT NOT NULL,
-    "academicYearId" TEXT NOT NULL,
-    "departmentId" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "divisions_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "admissions" (
     "id" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "admissionNumber" TEXT NOT NULL,
     "admissionDate" TIMESTAMP(3) NOT NULL,
     "admissionType" "AdmissionType" NOT NULL,
-    "quota" TEXT,
+    "entrySemesterCatalogId" TEXT NOT NULL,
+    "quota" "AdmissionQuota" NOT NULL,
     "status" "AdmissionStatus" NOT NULL DEFAULT 'CONFIRMED',
     "admittedByUserId" TEXT NOT NULL,
     "initialProgramId" TEXT NOT NULL,
@@ -274,7 +262,6 @@ CREATE TABLE "student_enrollments" (
     "userId" TEXT NOT NULL,
     "programId" TEXT NOT NULL,
     "curriculumVersionId" TEXT NOT NULL,
-    "enrollmentType" "EnrollmentType" NOT NULL,
     "rollNumber" TEXT NOT NULL,
     "admissionDate" TIMESTAMP(3) NOT NULL,
     "status" "StudentLifecycleStatus" NOT NULL DEFAULT 'ACTIVE',
@@ -292,7 +279,6 @@ CREATE TABLE "semester_enrollments" (
     "studentEnrollmentId" TEXT NOT NULL,
     "semesterCatalogId" TEXT NOT NULL,
     "academicYearId" TEXT NOT NULL,
-    "divisionId" TEXT NOT NULL,
     "attemptNumber" INTEGER NOT NULL DEFAULT 1,
     "status" "SemesterEnrollmentStatus" NOT NULL DEFAULT 'IN_PROGRESS',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -304,7 +290,7 @@ CREATE TABLE "semester_enrollments" (
 -- CreateTable
 CREATE TABLE "promotion_batches" (
     "id" TEXT NOT NULL,
-    "divisionId" TEXT NOT NULL,
+    "semesterCatalogId" TEXT NOT NULL,
     "academicYearId" TEXT NOT NULL,
     "initiatedByUserId" TEXT NOT NULL,
     "status" "PromotionBatchStatus" NOT NULL DEFAULT 'DRAFT',
@@ -384,7 +370,6 @@ CREATE TABLE "subject_components" (
 CREATE TABLE "subject_offerings" (
     "id" TEXT NOT NULL,
     "subjectId" TEXT NOT NULL,
-    "divisionId" TEXT NOT NULL,
     "academicYearId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -431,7 +416,8 @@ CREATE TABLE "time_slots" (
 -- CreateTable
 CREATE TABLE "timetables" (
     "id" TEXT NOT NULL,
-    "divisionId" TEXT NOT NULL,
+    "semesterCatalogId" TEXT NOT NULL,
+    "academicYearId" TEXT NOT NULL,
     "dayOfWeek" "DayOfWeek" NOT NULL,
     "startTime" TIME NOT NULL,
     "endTime" TIME NOT NULL,
@@ -452,7 +438,8 @@ CREATE TABLE "timetables" (
 -- CreateTable
 CREATE TABLE "lectures" (
     "id" TEXT NOT NULL,
-    "divisionId" TEXT NOT NULL,
+    "semesterCatalogId" TEXT NOT NULL,
+    "academicYearId" TEXT NOT NULL,
     "facultyUserId" TEXT NOT NULL,
     "timetableId" TEXT,
     "subjectOfferingId" TEXT NOT NULL,
@@ -721,15 +708,6 @@ CREATE INDEX "academic_years_isActive_idx" ON "academic_years"("isActive");
 CREATE UNIQUE INDEX "academic_years_label_key" ON "academic_years"("label");
 
 -- CreateIndex
-CREATE INDEX "divisions_academicYearId_idx" ON "divisions"("academicYearId");
-
--- CreateIndex
-CREATE INDEX "divisions_departmentId_idx" ON "divisions"("departmentId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "divisions_programId_academicYearId_name_key" ON "divisions"("programId", "academicYearId", "name");
-
--- CreateIndex
 CREATE UNIQUE INDEX "admissions_userId_key" ON "admissions"("userId");
 
 -- CreateIndex
@@ -745,16 +723,13 @@ CREATE INDEX "student_enrollments_programId_status_idx" ON "student_enrollments"
 CREATE UNIQUE INDEX "student_enrollments_rollNumber_key" ON "student_enrollments"("rollNumber");
 
 -- CreateIndex
-CREATE INDEX "semester_enrollments_divisionId_status_idx" ON "semester_enrollments"("divisionId", "status");
-
--- CreateIndex
 CREATE INDEX "semester_enrollments_academicYearId_status_idx" ON "semester_enrollments"("academicYearId", "status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "semester_enrollments_studentEnrollmentId_semesterCatalogId__key" ON "semester_enrollments"("studentEnrollmentId", "semesterCatalogId", "attemptNumber");
 
 -- CreateIndex
-CREATE INDEX "promotion_batches_divisionId_status_idx" ON "promotion_batches"("divisionId", "status");
+CREATE INDEX "promotion_batches_semesterCatalogId_academicYearId_status_idx" ON "promotion_batches"("semesterCatalogId", "academicYearId", "status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "promotion_decisions_fromSemesterEnrollmentId_key" ON "promotion_decisions"("fromSemesterEnrollmentId");
@@ -781,10 +756,10 @@ CREATE UNIQUE INDEX "student_elective_selections_semesterEnrollmentId_electiveGr
 CREATE UNIQUE INDEX "subject_components_subjectId_type_key" ON "subject_components"("subjectId", "type");
 
 -- CreateIndex
-CREATE INDEX "subject_offerings_divisionId_academicYearId_idx" ON "subject_offerings"("divisionId", "academicYearId");
+CREATE INDEX "subject_offerings_academicYearId_idx" ON "subject_offerings"("academicYearId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "subject_offerings_subjectId_divisionId_academicYearId_key" ON "subject_offerings"("subjectId", "divisionId", "academicYearId");
+CREATE UNIQUE INDEX "subject_offerings_subjectId_academicYearId_key" ON "subject_offerings"("subjectId", "academicYearId");
 
 -- CreateIndex
 CREATE INDEX "faculty_assignments_facultyUserId_idx" ON "faculty_assignments"("facultyUserId");
@@ -805,7 +780,13 @@ CREATE INDEX "timetables_timeSlotId_roomId_idx" ON "timetables"("timeSlotId", "r
 CREATE INDEX "timetables_subjectOfferingId_idx" ON "timetables"("subjectOfferingId");
 
 -- CreateIndex
+CREATE INDEX "timetables_semesterCatalogId_academicYearId_idx" ON "timetables"("semesterCatalogId", "academicYearId");
+
+-- CreateIndex
 CREATE INDEX "lectures_facultyAssignmentId_scheduledDate_idx" ON "lectures"("facultyAssignmentId", "scheduledDate");
+
+-- CreateIndex
+CREATE INDEX "lectures_semesterCatalogId_scheduledDate_idx" ON "lectures"("semesterCatalogId", "scheduledDate");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "lectures_subjectOfferingId_scheduledDate_startTime_key" ON "lectures"("subjectOfferingId", "scheduledDate", "startTime");
@@ -907,15 +888,6 @@ ALTER TABLE "curriculum_versions" ADD CONSTRAINT "curriculum_versions_programId_
 ALTER TABLE "semester_catalogs" ADD CONSTRAINT "semester_catalogs_curriculumVersionId_fkey" FOREIGN KEY ("curriculumVersionId") REFERENCES "curriculum_versions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "divisions" ADD CONSTRAINT "divisions_programId_fkey" FOREIGN KEY ("programId") REFERENCES "programs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "divisions" ADD CONSTRAINT "divisions_academicYearId_fkey" FOREIGN KEY ("academicYearId") REFERENCES "academic_years"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "divisions" ADD CONSTRAINT "divisions_departmentId_fkey" FOREIGN KEY ("departmentId") REFERENCES "departments"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "admissions" ADD CONSTRAINT "admissions_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -926,6 +898,9 @@ ALTER TABLE "admissions" ADD CONSTRAINT "admissions_initialProgramId_fkey" FOREI
 
 -- AddForeignKey
 ALTER TABLE "admissions" ADD CONSTRAINT "admissions_initialCurriculumId_fkey" FOREIGN KEY ("initialCurriculumId") REFERENCES "curriculum_versions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "admissions" ADD CONSTRAINT "admissions_entrySemesterCatalogId_fkey" FOREIGN KEY ("entrySemesterCatalogId") REFERENCES "semester_catalogs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "student_enrollments" ADD CONSTRAINT "student_enrollments_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -946,10 +921,7 @@ ALTER TABLE "semester_enrollments" ADD CONSTRAINT "semester_enrollments_semester
 ALTER TABLE "semester_enrollments" ADD CONSTRAINT "semester_enrollments_academicYearId_fkey" FOREIGN KEY ("academicYearId") REFERENCES "academic_years"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "semester_enrollments" ADD CONSTRAINT "semester_enrollments_divisionId_fkey" FOREIGN KEY ("divisionId") REFERENCES "divisions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "promotion_batches" ADD CONSTRAINT "promotion_batches_divisionId_fkey" FOREIGN KEY ("divisionId") REFERENCES "divisions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "promotion_batches" ADD CONSTRAINT "promotion_batches_semesterCatalogId_fkey" FOREIGN KEY ("semesterCatalogId") REFERENCES "semester_catalogs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "promotion_batches" ADD CONSTRAINT "promotion_batches_academicYearId_fkey" FOREIGN KEY ("academicYearId") REFERENCES "academic_years"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -997,9 +969,6 @@ ALTER TABLE "subject_components" ADD CONSTRAINT "subject_components_subjectId_fk
 ALTER TABLE "subject_offerings" ADD CONSTRAINT "subject_offerings_subjectId_fkey" FOREIGN KEY ("subjectId") REFERENCES "subjects"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "subject_offerings" ADD CONSTRAINT "subject_offerings_divisionId_fkey" FOREIGN KEY ("divisionId") REFERENCES "divisions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "subject_offerings" ADD CONSTRAINT "subject_offerings_academicYearId_fkey" FOREIGN KEY ("academicYearId") REFERENCES "academic_years"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -1015,7 +984,10 @@ ALTER TABLE "faculty_assignments" ADD CONSTRAINT "faculty_assignments_facultyUse
 ALTER TABLE "timetables" ADD CONSTRAINT "timetables_subjectOfferingId_fkey" FOREIGN KEY ("subjectOfferingId") REFERENCES "subject_offerings"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "timetables" ADD CONSTRAINT "timetables_divisionId_fkey" FOREIGN KEY ("divisionId") REFERENCES "divisions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "timetables" ADD CONSTRAINT "timetables_semesterCatalogId_fkey" FOREIGN KEY ("semesterCatalogId") REFERENCES "semester_catalogs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "timetables" ADD CONSTRAINT "timetables_academicYearId_fkey" FOREIGN KEY ("academicYearId") REFERENCES "academic_years"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "timetables" ADD CONSTRAINT "timetables_subjectComponentId_fkey" FOREIGN KEY ("subjectComponentId") REFERENCES "subject_components"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -1030,7 +1002,10 @@ ALTER TABLE "timetables" ADD CONSTRAINT "timetables_timeSlotId_fkey" FOREIGN KEY
 ALTER TABLE "timetables" ADD CONSTRAINT "timetables_roomId_fkey" FOREIGN KEY ("roomId") REFERENCES "rooms"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "lectures" ADD CONSTRAINT "lectures_divisionId_fkey" FOREIGN KEY ("divisionId") REFERENCES "divisions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "lectures" ADD CONSTRAINT "lectures_semesterCatalogId_fkey" FOREIGN KEY ("semesterCatalogId") REFERENCES "semester_catalogs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "lectures" ADD CONSTRAINT "lectures_academicYearId_fkey" FOREIGN KEY ("academicYearId") REFERENCES "academic_years"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "lectures" ADD CONSTRAINT "lectures_facultyUserId_fkey" FOREIGN KEY ("facultyUserId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

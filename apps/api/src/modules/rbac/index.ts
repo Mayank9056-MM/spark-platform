@@ -22,6 +22,9 @@
 export { authorizationService } from './authorization/authorization.service.js';
 export { roleAssignmentService } from './assignments/role-assignment.service.js';
 export { authorize } from './authorization/authorization.middleware.js';
+export { permissionRouter } from './permissions/permission.routes.js';
+export { roleAssignmentRouter } from './assignments/role-assignment.routes.js';
+export { roleRouter } from './roles/role.routes.js';
 export { scopeService } from './scopes/scope.service.js';
 export { SCOPE_HIERARCHY } from './rbac.constants.js';
 

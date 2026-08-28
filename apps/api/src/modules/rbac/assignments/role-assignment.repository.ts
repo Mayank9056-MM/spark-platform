@@ -44,8 +44,6 @@ function scopeContextToColumns(scope: ScopeContext): {
       return { scopeType: 'COLLEGE', scopeId: null };
     case 'DEPARTMENT':
       return { scopeType: 'DEPARTMENT', scopeId: scope.departmentId };
-    case 'DIVISION':
-      return { scopeType: 'DIVISION', scopeId: scope.divisionId };
   }
 }
 

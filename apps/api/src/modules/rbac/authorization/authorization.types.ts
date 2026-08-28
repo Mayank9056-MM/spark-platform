@@ -27,7 +27,15 @@ export type ResourceId = string;
 export type AuthorizationAction = 'create' | 'read' | 'update' | 'delete' | 'archive' | 'restore';
 
 export type AuthorizationResource =
-  'user' | 'role' | 'permission' | 'student' | 'faculty' | 'attendance' | 'assignment' | 'notice';
+  | 'user'
+  | 'role'
+  | 'permission'
+  | 'roleAssignment'
+  | 'student'
+  | 'faculty'
+  | 'attendance'
+  | 'assignment'
+  | 'notice';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Permission identity
@@ -46,9 +54,7 @@ export type PermissionKey = `${AuthorizationResource}:${AuthorizationAction}`;
 // ─────────────────────────────────────────────────────────────────────────
 
 export type ScopeContext =
-  | { readonly type: 'COLLEGE' }
-  | { readonly type: 'DEPARTMENT'; readonly departmentId: string }
-  | { readonly type: 'DIVISION'; readonly divisionId: string };
+  { readonly type: 'COLLEGE' } | { readonly type: 'DEPARTMENT'; readonly departmentId: string };
 
 // ─────────────────────────────────────────────────────────────────────────
 // Subject / Context

@@ -14,6 +14,7 @@ import {
 import { rateLimiter } from './middlewares/rate-limit.middleware.js';
 import { requestLoggerMiddleware } from './middlewares/request-logger.middleware.js';
 import { authRouter } from './modules/auth/auth.routes.js';
+import { permissionRouter, roleAssignmentRouter, roleRouter } from './modules/rbac/index.js';
 import { userRouter } from './modules/user/user.routes.js';
 
 /**
@@ -69,6 +70,9 @@ export function createServer(): Express {
   app.use(compression());
 
   app.use('/api/v1/auth', authRouter);
+  app.use('/api/v1/rbac/roles', roleRouter);
+  app.use('/api/v1/rbac/permissions', permissionRouter);
+  app.use('/api/v1/rbac/role-assignments', roleAssignmentRouter);
   app.use('/api/v1/users', userRouter);
 
   // Route-not-found must go through the SAME error pipeline as every other

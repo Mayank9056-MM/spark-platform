@@ -5,15 +5,12 @@ import { ErrorCode } from '../../../common/errors/ErrorCodes.js';
 import { roleAssignmentService } from '../assignments/role-assignment.service.js';
 import type { RoleAssignmentDTO } from '../assignments/role-assignment.types.js';
 import { permissionResolver } from '../permissions/permission-resolver.js';
-import type { DivisionDepartmentFact } from '../scopes/scope-resolver.js';
 import { scopeCovers } from '../scopes/scope-resolver.js';
-import { scopeService } from '../scopes/scope.service.js';
 
 import type {
   AuthorizationCheckResult,
   AuthorizationContext,
   PermissionKey,
-  ScopeContext,
 } from './authorization.types.js';
 
 /**
@@ -50,76 +47,6 @@ import type {
  * or credentials.
  */
 export class AuthorizationService {
-  /**
-   * Evaluates an AuthorizationContext and returns a diagnostic decision.
-   *
-   * Algorithm:
-   *
-   * 1. Resolve the subject's currently active role assignments.
-   *    No active assignments → INSUFFICIENT_ROLE.
-   *
-   * 2. Resolve the effective permissions for the subject's distinct role
-   *    IDs in a single batched, per-role-grouped query (no N+1 queries —
-   *    one query regardless of how many assignments/roles the subject
-   *    has).
-   *
-   * 3. Evaluate each active assignment independently, in order:
-   *      a. Does THIS assignment's role grant the requested permission
-   *         (`${resource}:${action}`, exact match only)?
-   *         If not, move to the next assignment. Permission and scope
-   *         are never combined across different assignments — see the
-   *         security note below.
-   *      b. If the requested scope is absent, this is a collection-level
-   *         check: a permission match alone is sufficient → ALLOW.
-   *      c. If a requested scope is present, does THIS assignment's
-   *         granted scope cover the requested scope (via scopeCovers)?
-   *         If yes → ALLOW.
-   *
-   * 4. If no assignment granted the permission at all → INSUFFICIENT_ROLE.
-   *
-   * 5. If at least one assignment granted the permission but none
-   *    covered the requested scope → FORBIDDEN_SCOPE.
-   *
-   * SECURITY — permission/scope correlation:
-   * A permission resolved from Role A must never be combined with a
-   * scope granted by Role B. Example: Role A grants `student:read` at
-   * DIVISION X; Role B grants nothing relevant but happens to be scoped
-   * COLLEGE-wide. The subject must NOT be treated as having
-   * `student:read` at COLLEGE scope. This is why permissions are grouped
-   * per-role (not flattened into one set) and each assignment is
-   * evaluated on its own terms.
-   *
-   * SCOPE SEMANTICS:
-   * - `context.scope === undefined` → global/collection check. A
-   *   permission match is sufficient; no implicit COLLEGE requirement is
-   *   assumed.
-   * - `context.scope = { type: 'COLLEGE' }` → requires an assignment
-   *   whose granted scope covers COLLEGE, i.e. a COLLEGE-scoped
-   *   assignment. This is a stricter, explicit request and is NOT
-   *   equivalent to an absent scope.
-   *
-   * FAIL-CLOSED:
-   * When a candidate assignment is granted at DEPARTMENT and the
-   * requested scope is DIVISION, scopeCovers needs a trusted
-   * DivisionDepartmentFact to know whether that division belongs to that
-   * department. That fact is resolved through scopeService — never
-   * guessed from matching ID strings. If the division does not exist (or
-   * the lookup yields nothing), scopeCovers is called without a fact and
-   * safely returns false. Unknown never means allowed.
-   *
-   * DETERMINISM:
-   * Active assignments and grouped permissions are each fetched with one
-   * query; the assignment list is evaluated in the order returned by the
-   * repository/mapper. No random selection, no mutation of inputs.
-   *
-   * `context.resourceId` is intentionally not used here. This service
-   * performs collection/resource-type-level and scope-level authorization
-   * only; it does not verify ownership or any other instance-level
-   * relationship between the subject and a specific resource instance.
-   * That is a distinct, not-yet-implemented resource-policy layer —
-   * `resourceId` is passed through the type for future use, not acted on
-   * by this algorithm.
-   */
   async check(context: AuthorizationContext): Promise<AuthorizationCheckResult> {
     const assignments = await roleAssignmentService.getActiveAssignmentsForUser(
       context.subject.userId,
@@ -139,11 +66,6 @@ export class AuthorizationService {
 
     const requestedPermissionKey: PermissionKey = `${context.resource}:${context.action}`;
 
-    // Resolved lazily, at most once per distinct requested divisionId,
-    // for the lifetime of this single check() call — only DEPARTMENT
-    // grant → DIVISION request combinations ever need it.
-    const divisionDepartmentFactCache = new Map<string, DivisionDepartmentFact | null>();
-
     let matchedPermissionKey: PermissionKey | undefined;
 
     for (const assignment of assignments) {
@@ -161,13 +83,7 @@ export class AuthorizationService {
         };
       }
 
-      const divisionDepartmentFact = await this.resolveDivisionDepartmentFactIfNeeded(
-        assignment.scope,
-        context.scope,
-        divisionDepartmentFactCache,
-      );
-
-      if (scopeCovers(assignment.scope, context.scope, divisionDepartmentFact)) {
+      if (scopeCovers(assignment.scope, context.scope)) {
         return {
           decision: { allowed: true },
           matchedPermissionKey: requestedPermissionKey,
@@ -238,35 +154,6 @@ export class AuthorizationService {
       return false;
     }
     return rolePermissions.some((permission) => permission.key === requestedPermissionKey);
-  }
-
-  /**
-   * Resolves a trusted DivisionDepartmentFact only for the one case
-   * scopeCovers actually needs it: a DEPARTMENT-granted scope evaluated
-   * against a DIVISION-requested scope. Every other combination is a
-   * pure, fact-free comparison and this returns undefined immediately.
-   *
-   * Caches by requested divisionId for the lifetime of one check() call
-   * so multiple DEPARTMENT-granting candidate assignments checked
-   * against the same requested DIVISION do not repeat the lookup.
-   */
-  private async resolveDivisionDepartmentFactIfNeeded(
-    grantedScope: ScopeContext,
-    requestedScope: ScopeContext,
-    cache: Map<string, DivisionDepartmentFact | null>,
-  ): Promise<DivisionDepartmentFact | undefined> {
-    if (grantedScope.type !== 'DEPARTMENT' || requestedScope.type !== 'DIVISION') {
-      return undefined;
-    }
-
-    const cached = cache.get(requestedScope.divisionId);
-    if (cached !== undefined) {
-      return cached ?? undefined;
-    }
-
-    const fact = await scopeService.getDivisionDepartmentFact(requestedScope.divisionId);
-    cache.set(requestedScope.divisionId, fact);
-    return fact ?? undefined;
   }
 }
 

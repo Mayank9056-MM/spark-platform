@@ -94,6 +94,69 @@ export const PERMISSIONS = Object.freeze({
     'Restore User',
     'Allows restoring a previously archived user account.',
   ),
+  ROLE_CREATE: definePermission('role', 'create', 'Create Role', 'Allows creating a new role.'),
+  ROLE_READ: definePermission(
+    'role',
+    'read',
+    'Read Role',
+    'Allows viewing role definitions and their granted permissions.',
+  ),
+  ROLE_UPDATE: definePermission(
+    'role',
+    'update',
+    'Update Role',
+    "Allows updating a role's display name and its granted permissions.",
+  ),
+  ROLE_ARCHIVE: definePermission(
+    'role',
+    'archive',
+    'Archive Role',
+    'Allows archiving a non-system role.',
+  ),
+  ROLE_RESTORE: definePermission(
+    'role',
+    'restore',
+    'Restore Role',
+    'Allows restoring a previously archived role.',
+  ),
+
+  PERMISSION_CREATE: definePermission(
+    'permission',
+    'create',
+    'Create Permission',
+    'Allows creating a new permission catalog entry.',
+  ),
+  PERMISSION_READ: definePermission(
+    'permission',
+    'read',
+    'Read Permission',
+    'Allows viewing the permission catalog.',
+  ),
+  PERMISSION_UPDATE: definePermission(
+    'permission',
+    'update',
+    'Update Permission',
+    "Allows updating a permission's display metadata.",
+  ),
+
+  ROLE_ASSIGNMENT_CREATE: definePermission(
+    'roleAssignment',
+    'create',
+    'Create Role Assignment',
+    'Allows assigning a role to a user within a scope.',
+  ),
+  ROLE_ASSIGNMENT_READ: definePermission(
+    'roleAssignment',
+    'read',
+    'Read Role Assignment',
+    'Allows viewing role assignments.',
+  ),
+  ROLE_ASSIGNMENT_DELETE: definePermission(
+    'roleAssignment',
+    'delete',
+    'Revoke Role Assignment',
+    'Allows revoking an active role assignment.',
+  ),
 } as const satisfies Record<string, PermissionCatalogEntry>);
 
 /**

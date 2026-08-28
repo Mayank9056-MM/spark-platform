@@ -136,7 +136,7 @@ export class RoleAssignmentService {
 
   // ── Read ──────────────────────────────────────────────────────────
 
-  /** Tenant-safe by construction — delegates directly to the repository's own `organizationId`-scoped `findById`, never a global lookup. */
+  /** Delegates directly to the repository's findById — this is a single-college deployment, so there is no additional tenant scoping to apply. */
   async getById(roleAssignmentId: RoleAssignmentId): Promise<RoleAssignmentDTO> {
     const assignment = await roleAssignmentRepository.findById(roleAssignmentId);
     if (!assignment) {
