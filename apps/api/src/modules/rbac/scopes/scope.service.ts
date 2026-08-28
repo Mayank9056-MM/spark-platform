@@ -3,9 +3,8 @@
 import { ApiError } from '../../../common/errors/ApiError.js';
 import { ErrorCode } from '../../../common/errors/ErrorCodes.js';
 
-import type { DivisionDepartmentFact } from './scope-resolver.js';
 import { scopeRepository } from './scope.repository.js';
-import type { DivisionId, ScopeContext } from './scope.types.js';
+import type { ScopeContext } from './scope.types.js';
 
 /**
  * Business-logic boundary for RBAC scope validation.
@@ -54,17 +53,9 @@ export class ScopeService {
         return;
 
       case 'DEPARTMENT': {
-        const exists = await scopeRepository.departmentExistsInOrganization(scope.departmentId);
+        const exists = await scopeRepository.departmentExists(scope.departmentId);
         if (!exists) {
           throw ApiError.notFound('Department not found', ErrorCode.RECORD_NOT_FOUND);
-        }
-        return;
-      }
-
-      case 'DIVISION': {
-        const exists = await scopeRepository.divisionExistsInOrganization(scope.divisionId);
-        if (!exists) {
-          throw ApiError.notFound('Division not found', ErrorCode.RECORD_NOT_FOUND);
         }
         return;
       }
@@ -74,31 +65,6 @@ export class ScopeService {
         throw new Error(`Invalid ScopeContext: unknown scope type "${String(exhaustiveCheck)}".`);
       }
     }
-  }
-
-  /**
-   * Resolves the trusted Department ↔ Division relationship fact needed
-   * by scope-resolver.ts's scopeCovers() when a DEPARTMENT-granted scope
-   * is evaluated against a DIVISION-requested scope.
-   *
-   * Returns null when the Division does not exist. Callers — specifically
-   * authorization.service.ts — must treat null exactly like "no fact
-   * available" and let scopeCovers fail closed (return false), never
-   * substitute a guessed relationship or assume coverage in its absence.
-   *
-   * This is a read-only lookup, not a validation call: it does not throw
-   * for a missing Division. Existence validation belongs to
-   * validateScopeOwnership above; this method only answers "what
-   * department does this division belong to, if it exists at all".
-   */
-  async getDivisionDepartmentFact(divisionId: DivisionId): Promise<DivisionDepartmentFact | null> {
-    const departmentId = await scopeRepository.findDepartmentIdForDivision(divisionId);
-
-    if (departmentId === null) {
-      return null;
-    }
-
-    return { divisionId, departmentId };
   }
 }
 
