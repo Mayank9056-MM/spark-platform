@@ -8,6 +8,7 @@ import { prisma } from '../../../lib/prisma.js';
 import { recordAuditTx } from '../../audit/audit.service.js';
 import { AuditEntityType } from '../../audit/audit.types.js';
 import type { PermissionKey } from '../authorization/authorization.types.js';
+import { assertHoldsPermission } from '../authorization/privilege-guard.js';
 
 import { toPermissionDTO, toPermissionDTOList } from './permission.mapper.js';
 import { permissionRepository } from './permission.repository.js';
@@ -165,6 +166,18 @@ export class PermissionService {
     input: AssignPermissionToRoleInput,
   ): Promise<RolePermission> {
     const permission = await this.getById(input.permissionId);
+
+    /**
+     * PRIVILEGE-ESCALATION GUARD — see authorization/privilege-guard.ts.
+     * authorize('role', 'update') only confirms the actor may call a
+     * role-update-shaped endpoint at all; it says nothing about WHICH
+     * permission is being attached. Without this, an actor holding only
+     * role:update could attach role:create / permission:create /
+     * roleAssignment:create to a role they control without ever
+     * personally holding it. The actor must already effectively hold
+     * the exact permission being granted, at any scope.
+     */
+    await assertHoldsPermission(actorUserId, permission.key);
 
     const alreadyAssigned = await permissionRepository.hasAssignment(
       input.roleId,
