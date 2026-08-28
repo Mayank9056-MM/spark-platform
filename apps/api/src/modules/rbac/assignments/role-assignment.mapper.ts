@@ -21,7 +21,7 @@ import type { RoleAssignmentDTO } from './role-assignment.types.js';
  *
  * Tenant/organization information is intentionally absent because this
  * application is single-college. Authorization scope is represented by
- * ScopeContext through COLLEGE, DEPARTMENT, or DIVISION.
+ * ScopeContext through COLLEGE or DEPARTMENT.
  */
 
 /**
@@ -32,7 +32,6 @@ import type { RoleAssignmentDTO } from './role-assignment.types.js';
  *
  *   COLLEGE      → scopeId = null
  *   DEPARTMENT   → scopeId = department id
- *   DIVISION     → scopeId = division id
  *
  * Impossible persisted combinations are rejected rather than silently
  * coerced into a valid-looking scope.
@@ -57,16 +56,6 @@ function toScopeContext(assignment: RoleAssignment): ScopeContext {
         );
       }
       return { type: 'DEPARTMENT', departmentId: assignment.scopeId };
-    }
-
-    case 'DIVISION': {
-      if (assignment.scopeId === null) {
-        throw new Error(
-          `Invalid persisted RoleAssignment scope: scopeType=DIVISION requires a non-null scopeId, ` +
-            `but found null on RoleAssignment ${assignment.id}.`,
-        );
-      }
-      return { type: 'DIVISION', divisionId: assignment.scopeId };
     }
 
     default: {
