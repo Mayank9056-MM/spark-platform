@@ -13,6 +13,7 @@ import {
 } from './middlewares/error-handler.middleware.js';
 import { rateLimiter } from './middlewares/rate-limit.middleware.js';
 import { requestLoggerMiddleware } from './middlewares/request-logger.middleware.js';
+import { departmentRouter } from './modules/academic/index.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { permissionRouter, roleAssignmentRouter, roleRouter } from './modules/rbac/index.js';
 import { userRouter } from './modules/user/user.routes.js';
@@ -70,10 +71,11 @@ export function createServer(): Express {
   app.use(compression());
 
   app.use('/api/v1/auth', authRouter);
+  app.use('/api/v1/users', userRouter);
   app.use('/api/v1/rbac/roles', roleRouter);
   app.use('/api/v1/rbac/permissions', permissionRouter);
   app.use('/api/v1/rbac/role-assignments', roleAssignmentRouter);
-  app.use('/api/v1/users', userRouter);
+  app.use('/api/v1/academic/departments', departmentRouter);
 
   // Route-not-found must go through the SAME error pipeline as every other
   // error (Phase 11) — a bare res.json() here previously produced a

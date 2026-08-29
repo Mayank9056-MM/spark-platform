@@ -157,6 +157,30 @@ export const PERMISSIONS = Object.freeze({
     'Revoke Role Assignment',
     'Allows revoking an active role assignment.',
   ),
+  DEPARTMENT_CREATE: definePermission(
+    'department',
+    'create',
+    'Create Department',
+    'Allows creating a new department.',
+  ),
+  DEPARTMENT_READ: definePermission(
+    'department',
+    'read',
+    'Read Department',
+    'Allows viewing department details.',
+  ),
+  DEPARTMENT_UPDATE: definePermission(
+    'department',
+    'update',
+    'Update Department',
+    "Allows updating a department's details.",
+  ),
+  DEPARTMENT_DELETE: definePermission(
+    'department',
+    'delete',
+    'Delete Department',
+    'Allows deleting a department.',
+  ),
 } as const satisfies Record<string, PermissionCatalogEntry>);
 
 /**
