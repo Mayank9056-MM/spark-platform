@@ -181,6 +181,30 @@ export const PERMISSIONS = Object.freeze({
     'Delete Department',
     'Allows deleting a department.',
   ),
+  PROGRAM_CREATE: definePermission(
+    'program',
+    'create',
+    'Create Program',
+    'Allows creating a new academic program.',
+  ),
+  PROGRAM_READ: definePermission(
+    'program',
+    'read',
+    'Read Program',
+    'Allows viewing academic program details.',
+  ),
+  PROGRAM_UPDATE: definePermission(
+    'program',
+    'update',
+    'Update Program',
+    "Allows updating an academic program's details.",
+  ),
+  PROGRAM_DELETE: definePermission(
+    'program',
+    'delete',
+    'Delete Program',
+    'Allows deleting an academic program.',
+  ),
 } as const satisfies Record<string, PermissionCatalogEntry>);
 
 /**
