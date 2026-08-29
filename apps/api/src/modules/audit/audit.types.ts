@@ -11,6 +11,11 @@ export enum AuditEntityType {
   ROLE = 'Role',
   ROLE_ASSIGNMENT = 'RoleAssignment',
   DEPARTMENT = 'Department',
+  // Added for the Program domain (Department -> Program in the academic
+  // hierarchy). Program's audit policy mirrors Department's exactly:
+  // transactional CREATE/UPDATE/DELETE, no audit on routine reads. See
+  // program.service.ts.
+  PROGRAM = 'Program',
 }
 
 export interface RecordAuditInput {
