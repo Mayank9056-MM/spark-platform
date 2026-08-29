@@ -13,7 +13,8 @@
     "lint:fix": "eslint . --fix",
     "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "db:seed:permissions": "tsx src/scripts/seed-permissions.ts"
   },
   "keywords": [],
   "author": "Mayank Mahajan",
