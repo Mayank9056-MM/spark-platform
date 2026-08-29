@@ -10,6 +10,7 @@ export enum AuditEntityType {
   SESSION = 'Session',
   ROLE = 'Role',
   ROLE_ASSIGNMENT = 'RoleAssignment',
+  DEPARTMENT = 'Department',
 }
 
 export interface RecordAuditInput {
