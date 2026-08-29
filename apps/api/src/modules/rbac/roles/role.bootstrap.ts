@@ -51,10 +51,12 @@ import { roleLogger } from '@/lib/logger.js';
  * function refuses to proceed for that role and throws — it will never
  * silently grant every catalog permission to a role it didn't itself
  * provision as protected. If the existing role IS system-defined but
- * has been archived (`deletedAt` set), it is skipped with a warning
- * rather than silently revived or silently granted permissions while
- * still archived — restoring a role is a distinct, deliberate lifecycle
- * action outside this bootstrap's scope.
+ * has been archived (`deletedAt` set), this function throws rather than
+ * silently reviving it, silently granting it permissions while archived,
+ * or completing a run that leaves a protected role unresolved — restoring
+ * a role is a distinct, deliberate lifecycle action outside this
+ * bootstrap's scope and must be done explicitly (roleRepository.restore)
+ * before rerunning.
  *
  * ── Transaction boundary ─────────────────────────────────────────────
  * All reads (resolving permission ids, classifying each role's current
@@ -130,11 +132,12 @@ export async function bootstrapSystemRoles(): Promise<void> {
     }
 
     if (existing?.deletedAt) {
-      roleLogger.warn('RBAC bootstrap: system role exists but is archived — skipping', {
-        key: roleDef.key,
-        roleId: existing.id,
-      });
-      continue;
+      throw new Error(
+        `RBAC bootstrap conflict: the system-defined role "${roleDef.key}" exists but is ` +
+          'archived (deletedAt is set). Refusing to silently revive it, grant permissions ' +
+          'to it while archived, or proceed with only a partial system-role set. Restore it ' +
+          'explicitly (roleRepository.restore) before rerunning the bootstrap.',
+      );
     }
 
     rolesToEnsure.push({
@@ -156,14 +159,17 @@ export async function bootstrapSystemRoles(): Promise<void> {
           })
         ).id;
 
-      for (const permissionId of permissionIds) {
-        await permissionRepository.upsertRoleGrant(tx, roleId, permissionId);
-      }
+      const newlyGrantedCount = await permissionRepository.upsertRoleGrants(
+        tx,
+        roleId,
+        permissionIds,
+      );
 
       roleLogger.info('RBAC system role ensured', {
         key: roleDef.key,
         roleId,
-        grantedPermissionCount: permissionIds.length,
+        totalPermissionCount: permissionIds.length,
+        newlyGrantedCount,
       });
     }
   });

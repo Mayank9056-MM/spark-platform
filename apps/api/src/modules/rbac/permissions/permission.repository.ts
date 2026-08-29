@@ -323,6 +323,27 @@ export class PermissionRepository {
       update: {},
     });
   }
+
+  /**
+   * Idempotent bulk grant of permissions to a role — single native
+   * INSERT ... ON CONFLICT DO NOTHING via createMany/skipDuplicates,
+   * rather than N per-row upserts with an empty update clause (which
+   * cannot generate a valid DO UPDATE SET and can fall back to a
+   * non-atomic check-then-write sequence). Returns the count of rows
+   * actually inserted this call — 0 on a fully-converged rerun.
+   */
+  async upsertRoleGrants(
+    tx: Db,
+    roleId: string,
+    permissionIds: readonly PermissionId[],
+  ): Promise<number> {
+    if (permissionIds.length === 0) return 0;
+    const result = await tx.rolePermission.createMany({
+      data: permissionIds.map((permissionId) => ({ roleId, permissionId })),
+      skipDuplicates: true,
+    });
+    return result.count;
+  }
 }
 
 export const permissionRepository = new PermissionRepository();
