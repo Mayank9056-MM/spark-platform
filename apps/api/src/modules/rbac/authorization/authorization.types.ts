@@ -31,6 +31,7 @@ export type AuthorizationResource =
   | 'role'
   | 'permission'
   | 'roleAssignment'
+  | 'department'
   | 'student'
   | 'faculty'
   | 'attendance'
