@@ -47,6 +47,12 @@ const envSchema = z.object({
    * IPs); too restrictive breaks rate limiting/IP logging behind a real proxy.
    */
   TRUST_PROXY: z.string().default('false'),
+
+  // Admin
+  INITIAL_SUPER_ADMIN_EMAIL: z.string().min(1, 'INITIAL_SUPER_ADMIN_EMAIL is required'),
+  INITIAL_SUPER_ADMIN_PASSWORD: z.string().min(1, 'INITIAL_SUPER_ADMIN_PASSWORD is required'),
+  INITIAL_SUPER_ADMIN_FIRST_NAME: z.string().min(1, 'INITIAL_SUPER_ADMIN_FIRST_NAME is required'),
+  INITIAL_SUPER_ADMIN_LAST_NAME: z.string().min(1, 'INITIAL_SUPER_ADMIN_LAST_NAME is required'),
 });
 
 export const env = envSchema.parse(process.env);
