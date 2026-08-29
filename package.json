@@ -21,7 +21,8 @@
     "docker:up": "docker compose -f infrastructure/docker/docker-compose.dev.yml up -d",
     "docker:down": "docker compose -f infrastructure/docker/docker-compose.dev.yml down",
     "db:migrate": "pnpm --filter @spark/database exec prisma migrate dev",
-    "db:studio": "pnpm --filter @spark/database exec prisma studio"
+    "db:studio": "pnpm --filter @spark/database exec prisma studio",
+    "db:seed:permissions": "pnpm --filter api run db:seed:permissions"
   },
   "repository": {
     "type": "git",
