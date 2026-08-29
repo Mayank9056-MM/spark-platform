@@ -5,6 +5,7 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
+    seed: 'pnpm --filter api run db:seed:permissions',
   },
   datasource: {
     url: env('DATABASE_URL'),
