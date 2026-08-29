@@ -297,6 +297,32 @@ export class PermissionRepository {
 
     return permissionsByRole;
   }
+
+  /**
+   * Idempotent grant of a Permission to a Role, keyed on the composite
+   * (roleId, permissionId) primary key already defined on RolePermission.
+   *
+   * Unlike `assignToRole` (a plain insert, used by the HTTP-facing
+   * grant-permission flow where a duplicate grant should surface to the
+   * caller as a 409 Conflict), this is the upsert-shaped primitive for
+   * idempotent bootstrap/seed code: running it any number of times
+   * converges to the same granted relationship, never throwing on an
+   * already-existing grant and never creating a duplicate row. There is
+   * no mutable data on RolePermission besides `createdAt` (set once, on
+   * first insert) — a repeat call past the first successful grant is a
+   * true no-op.
+   */
+  async upsertRoleGrant(
+    tx: Db,
+    roleId: string,
+    permissionId: PermissionId,
+  ): Promise<RolePermission> {
+    return tx.rolePermission.upsert({
+      where: { roleId_permissionId: { roleId, permissionId } },
+      create: { roleId, permissionId },
+      update: {},
+    });
+  }
 }
 
 export const permissionRepository = new PermissionRepository();
