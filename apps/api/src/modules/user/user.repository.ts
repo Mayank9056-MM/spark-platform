@@ -4,6 +4,7 @@ import { normalizeEmail } from '../../lib/email.js';
 import { prisma } from '../../lib/prisma.js';
 
 import type {
+  CreateActivatedUserInput,
   CreateUserInput,
   ListUsersFilters,
   ListUsersOptions,
@@ -36,6 +37,29 @@ export class UserRepository {
         // The User module NEVER sets either of these directly; that's
         // Auth's job via setPasswordHash(), called only from activation/
         // reset flows.
+      },
+    });
+  }
+
+  /**
+   * Narrowly scoped, trusted-caller-only primitive for bootstrap/
+   * provisioning flows that must create a User immediately usable for
+   * login — passwordHash set and status ACTIVE from creation, bypassing
+   * the PENDING_ACTIVATION + activation-token flow that create() above
+   * goes through. Deliberately NOT reachable from any HTTP-facing "create
+   * user" flow. Mirrors the createSystemRole / create() split already
+   * established in role.repository.ts.
+   */
+  async createActivatedUser(tx: Db, input: CreateActivatedUserInput): Promise<User> {
+    return tx.user.create({
+      data: {
+        email: normalizeEmail(input.email),
+        firstName: input.firstName,
+        middleName: input.middleName ?? null,
+        lastName: input.lastName,
+        passwordHash: input.passwordHash,
+        status: 'ACTIVE',
+        lastPasswordChangeAt: new Date(),
       },
     });
   }

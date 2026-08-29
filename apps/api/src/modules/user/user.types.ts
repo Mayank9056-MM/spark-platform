@@ -7,6 +7,20 @@ export interface CreateUserInput {
   lastName: string;
 }
 
+/**
+ * Input for userRepository.createActivatedUser — the trusted bootstrap-only
+ * primitive, distinct from CreateUserInput's ordinary self-service shape.
+ * Requires passwordHash directly because this path skips the
+ * PENDING_ACTIVATION + activation-token flow entirely.
+ */
+export interface CreateActivatedUserInput {
+  email: string;
+  firstName: string;
+  middleName?: string | undefined;
+  lastName: string;
+  passwordHash: string;
+}
+
 export interface UpdateUserInput {
   firstName?: string | undefined;
   middleName?: string | null | undefined;
