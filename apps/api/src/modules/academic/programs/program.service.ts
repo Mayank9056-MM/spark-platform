@@ -4,6 +4,7 @@ import type { Prisma } from '@spark/database/client';
 
 import { ApiError } from '../../../common/errors/ApiError.js';
 import { ErrorCode } from '../../../common/errors/ErrorCodes.js';
+import { programLogger } from '../../../lib/logger.js';
 import { prisma } from '../../../lib/prisma.js';
 import { recordAuditTx } from '../../audit/audit.service.js';
 import { AuditEntityType } from '../../audit/audit.types.js';
@@ -117,11 +118,16 @@ import type {
  * a Program by id once one exists).
  *
  * ── LOGGING ────────────────────────────────────────────────────────
- * `lib/logger.ts` was inspected and does not export a `programLogger` —
- * only `roleLogger`, `userLogger`, `roleAssignmentLogger`, `auditLogger`,
- * etc. exist. Adding one is outside this task's authorized file list, so
- * — matching DepartmentService's identical, explicitly-noted choice — no
- * logging calls were added here.
+ * `lib/logger.ts` now exports `programLogger` (a child logger keyed
+ * `component: 'program'`), so CREATE/UPDATE/DELETE below each emit a
+ * single INFO log via `programLogger` once their transaction has
+ * resolved successfully — never before, and never if the transaction
+ * throws. Logs carry only `actorUserId` and `programId`; they do not
+ * duplicate the `oldValue`/`newValue` snapshots `recordAuditTx` already
+ * persists — Audit remains the authoritative business history, this is
+ * operational visibility only. Routine reads (`getProgramById`,
+ * `listPrograms`) remain unlogged, matching every other service in this
+ * codebase, to avoid log noise on high-volume read traffic.
  */
 export class ProgramService {
   /**
@@ -183,6 +189,11 @@ export class ProgramService {
       });
 
       return created;
+    });
+
+    programLogger.info('Program created', {
+      actorUserId,
+      programId: program.id,
     });
 
     return toProgramDTO(program);
@@ -272,6 +283,11 @@ export class ProgramService {
       return result;
     });
 
+    programLogger.info('Program updated', {
+      actorUserId,
+      programId: updated.id,
+    });
+
     return toProgramDTO(updated);
   }
 
@@ -316,6 +332,11 @@ export class ProgramService {
         },
         newValue: null,
       });
+    });
+
+    programLogger.info('Program deleted', {
+      actorUserId,
+      programId: id,
     });
   }
 }
