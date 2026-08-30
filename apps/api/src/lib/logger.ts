@@ -22,3 +22,6 @@ export const userLogger = createChildLogger({ component: 'user' });
 export const roleAssignmentLogger = createChildLogger({ component: 'role-assignment' });
 export const permissionLogger = createChildLogger({ component: 'permission' });
 export const roleLogger = createChildLogger({ component: 'role' });
+export const departmentLogger = createChildLogger({ component: 'department' });
+export const programLogger = createChildLogger({ component: 'program' });
+export const curriculumLogger = createChildLogger({ component: 'curriculum' });
