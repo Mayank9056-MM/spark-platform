@@ -4,6 +4,7 @@ import type { Prisma } from '@spark/database/client';
 
 import { ApiError } from '../../../common/errors/ApiError.js';
 import { ErrorCode } from '../../../common/errors/ErrorCodes.js';
+import { departmentLogger } from '../../../lib/logger.js';
 import { prisma } from '../../../lib/prisma.js';
 import { recordAuditTx } from '../../audit/audit.service.js';
 import { AuditEntityType } from '../../audit/audit.types.js';
@@ -69,12 +70,17 @@ import type {
  * improvement scoped to Department only — it does not change how
  * Role/User capture their pre-mutation state.
  *
- * ── LOGGING (still flagged — unchanged from the prior revision) ──────
- * `lib/logger.ts` was inspected and does not export a `departmentLogger`
- * — only `roleLogger`, `userLogger`, `roleAssignmentLogger`, etc. exist.
- * Adding one is outside this task's authorized file list (only
- * department.service.ts, department.repository.ts, and audit.types.ts
- * were in scope), so no logging calls were added here.
+ * ── LOGGING ────────────────────────────────────────────────────────
+ * `lib/logger.ts` now exports `departmentLogger` (a child logger keyed
+ * `component: 'department'`), so CREATE/UPDATE/DELETE below each emit a
+ * single INFO log via `departmentLogger` once their transaction has
+ * resolved successfully — never before, and never if the transaction
+ * throws. Logs carry only `actorUserId` and `departmentId`; they do not
+ * duplicate the `oldValue`/`newValue` snapshots `recordAuditTx` already
+ * persists — Audit remains the authoritative business history, this is
+ * operational visibility only. Routine reads (`getDepartmentById`,
+ * `listDepartments`) remain unlogged, matching every other service in
+ * this codebase, to avoid log noise on high-volume read traffic.
  */
 export class DepartmentService {
   /**
@@ -120,6 +126,11 @@ export class DepartmentService {
       });
 
       return created;
+    });
+
+    departmentLogger.info('Department created', {
+      actorUserId,
+      departmentId: department.id,
     });
 
     return toDepartmentDTO(department);
@@ -194,6 +205,11 @@ export class DepartmentService {
       return result;
     });
 
+    departmentLogger.info('Department updated', {
+      actorUserId,
+      departmentId: updated.id,
+    });
+
     return toDepartmentDTO(updated);
   }
 
@@ -229,6 +245,11 @@ export class DepartmentService {
         oldValue: { id: existing.id, name: existing.name, code: existing.code },
         newValue: null,
       });
+    });
+
+    departmentLogger.info('Department deleted', {
+      actorUserId,
+      departmentId: id,
     });
   }
 }
