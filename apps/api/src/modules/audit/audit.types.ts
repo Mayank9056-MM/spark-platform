@@ -16,6 +16,7 @@ export enum AuditEntityType {
   // transactional CREATE/UPDATE/DELETE, no audit on routine reads. See
   // program.service.ts.
   PROGRAM = 'Program',
+  CURRICULUM_VERSION = 'CURRICULUM_VERSION',
 }
 
 export interface RecordAuditInput {
