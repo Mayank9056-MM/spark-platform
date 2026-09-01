@@ -3,8 +3,8 @@
 import { Router } from 'express';
 
 import { requireAuth } from '../../../middlewares/auth.middleware.js';
-import { requireInterimAdmin } from '../../../middlewares/interim-admin.guard.js';
 import { validate } from '../../../middlewares/validate.middleware.js';
+import { authorize } from '../../rbac/index.js';
 
 import * as electiveGroupController from './elective.controller.js';
 import {
@@ -16,8 +16,8 @@ import {
 
 /**
  * HTTP route composition for the ElectiveGroup module — pure composition
- * only: requireAuth → authorization guard → validate(schema, source) →
- * controller.
+ * only: requireAuth → authorize(resource, action) → validate(schema,
+ * source) → controller.
  *
  * No Prisma access, repository/service calls, audit logic, manual
  * validation, response construction, or business rules belong here.
@@ -26,36 +26,25 @@ import {
  * ApiResponse construction, while errors propagate to the centralized
  * error middleware.
  *
- * ── AUTHORIZATION: INTERIM, NOT YET REGISTERED IN RBAC ────────────────
+ * ── AUTHORIZATION: FIRST-CLASS RBAC RESOURCE ──────────────────────────
+ * ElectiveGroup is now a first-class RBAC resource — migrated off the
+ * `requireInterimAdmin` stopgap the same way department.routes.ts /
+ * program.routes.ts were. `AuthorizationResource` includes the
+ * 'electiveGroup' literal, and permission.constants.ts defines the
+ * corresponding ELECTIVE_GROUP_* catalog entries. Routes use
+ * operation-specific permissions:
  *
- * ElectiveGroup is currently NOT a first-class RBAC resource.
- * `AuthorizationResource` does not contain an `electiveGroup` literal,
- * and `permission.constants.ts` does not define ElectiveGroup
- * create/read/update/delete permissions.
+ *   POST /      → electiveGroup:create
+ *   GET /       → electiveGroup:read
+ *   GET /:id    → electiveGroup:read
+ *   PATCH /:id  → electiveGroup:update
+ *   DELETE /:id → electiveGroup:delete
  *
- * Therefore this router deliberately uses `requireInterimAdmin`
- * uniformly across all five routes. This matches the current
- * authorization state of the Subject and SemesterCatalog academic
- * modules.
- *
- * Do NOT invent an `electiveGroup` authorization resource here and do not
- * cast around the authorization type system. RBAC registration should be
- * a separate, deliberate change to the authorization domain and permission
- * catalog.
- *
- * ── FUTURE RBAC MIGRATION ─────────────────────────────────────────────
- *
- * Once ElectiveGroup is formally registered as an RBAC resource and its
- * permissions are added to the canonical permission catalog, replace
- * `requireInterimAdmin` with operation-specific authorization:
- *
- *   requireInterimAdmin → authorize('electiveGroup', 'create') // POST /
- *   requireInterimAdmin → authorize('electiveGroup', 'read')   // GET /, GET /:id
- *   requireInterimAdmin → authorize('electiveGroup', 'update') // PATCH /:id
- *   requireInterimAdmin → authorize('electiveGroup', 'delete') // DELETE /:id
- *
- * The exact resource/action literals must come from the formally registered
- * RBAC types rather than being introduced by this router.
+ * `authorize` is imported from `../../rbac/index.js`, not
+ * `../../rbac/authorization/authorization.middleware.js` directly —
+ * elective.routes.ts lives outside the rbac module (in academic/), so it
+ * crosses the module boundary through the public rbac/index.ts surface,
+ * same as department.routes.ts / program.routes.ts.
  */
 
 export const electiveGroupRouter = Router();
@@ -64,28 +53,28 @@ electiveGroupRouter.use(requireAuth);
 
 electiveGroupRouter.post(
   '/',
-  requireInterimAdmin,
+  authorize('electiveGroup', 'create'),
   validate(createElectiveGroupBodySchema),
   electiveGroupController.createElectiveGroup,
 );
 
 electiveGroupRouter.get(
   '/',
-  requireInterimAdmin,
+  authorize('electiveGroup', 'read'),
   validate(listElectiveGroupsQuerySchema, 'query'),
   electiveGroupController.listElectiveGroups,
 );
 
 electiveGroupRouter.get(
   '/:id',
-  requireInterimAdmin,
+  authorize('electiveGroup', 'read'),
   validate(electiveGroupIdParamsSchema, 'params'),
   electiveGroupController.getElectiveGroupById,
 );
 
 electiveGroupRouter.patch(
   '/:id',
-  requireInterimAdmin,
+  authorize('electiveGroup', 'update'),
   validate(electiveGroupIdParamsSchema, 'params'),
   validate(updateElectiveGroupBodySchema),
   electiveGroupController.updateElectiveGroup,
@@ -93,7 +82,7 @@ electiveGroupRouter.patch(
 
 electiveGroupRouter.delete(
   '/:id',
-  requireInterimAdmin,
+  authorize('electiveGroup', 'delete'),
   validate(electiveGroupIdParamsSchema, 'params'),
   electiveGroupController.deleteElectiveGroup,
 );
