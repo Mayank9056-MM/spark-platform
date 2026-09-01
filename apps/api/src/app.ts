@@ -16,6 +16,7 @@ import { requestLoggerMiddleware } from './middlewares/request-logger.middleware
 import {
   curriculumRouter,
   departmentRouter,
+  electiveGroupRouter,
   programRouter,
   semesterCatalogRouter,
   subjectRouter,
@@ -86,6 +87,7 @@ export function createServer(): Express {
   app.use('/api/v1/academic/curricula', curriculumRouter);
   app.use('/api/v1/academic/semester-catalogs', semesterCatalogRouter);
   app.use('/api/v1/academic/subjects', subjectRouter);
+  app.use('/api/v1/academic/electives', electiveGroupRouter);
 
   // Route-not-found must go through the SAME error pipeline as every other
   // error (Phase 11) — a bare res.json() here previously produced a
