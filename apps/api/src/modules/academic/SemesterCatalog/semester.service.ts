@@ -131,24 +131,18 @@ import { AuditEntityType } from '@/modules/audit/audit.types.js';
  * adds no mechanism to reassign a SemesterCatalog's CurriculumVersion —
  * see semester.types.ts's own doc comment for why.
  *
- * ── ERROR CODE GAP (flagged, not silently resolved) ──────────────────
+ * ── ERROR CODE ────────────────────────────────────────────────────────
  * When `updateSemesterCatalog` rejects a `number` change because
- * dependent records exist, it throws `ApiError.conflict(message)` with
- * NO `ErrorCode`. Every existing `ErrorCode`
- * (`DUPLICATE_ENTRY`/`FOREIGN_KEY_VIOLATION`/`RECORD_NOT_FOUND`/etc.)
- * describes a different failure shape than "this field can't change
- * because historical records already depend on it" — `DUPLICATE_ENTRY`
- * means a value collision, not a protected/locked field, and
- * `FOREIGN_KEY_VIOLATION` means the opposite direction (referencing
- * something that doesn't exist, not something that does and is
- * blocking a change). Per this task's own instruction not to
- * arbitrarily reuse an unrelated code, none is attached here; the HTTP
- * response is still a correct 409 with a clear message, but a frontend
- * cannot yet distinguish this conflict from a generic one by
- * machine-readable `code`. A new code — something like
- * `ErrorCode.HISTORICAL_RECORD_PROTECTED` — is a genuine candidate but
- * was not added to `ErrorCodes.ts` here, since that decision was
- * flagged for you rather than made unilaterally.
+ * dependent records exist, it throws `ApiError.conflict(message,
+ * ErrorCode.SEMESTER_NUMBER_PROTECTED)`. None of the existing codes fit:
+ * `DUPLICATE_ENTRY` means a value collision, not a protected/locked
+ * field, and `FOREIGN_KEY_VIOLATION` means the opposite direction
+ * (referencing something that doesn't exist, not something that does
+ * and is blocking a change). `SEMESTER_NUMBER_PROTECTED` was added to
+ * ErrorCodes.ts as the minimal, dedicated addition this required —
+ * same convention as `AuditEntityType.SEMESTER_CATALOG`'s addition
+ * noted above. The HTTP status remains 409; the business rule is
+ * unchanged.
  *
  * ── LOGGING ────────────────────────────────────────────────────────
  * `lib/logger.ts` now exports `semesterCatalogLogger` (a child logger
@@ -327,6 +321,7 @@ export class SemesterCatalogService {
           if (hasDependents) {
             throw ApiError.conflict(
               'The semester number cannot be changed because academic records already reference this semester.',
+              ErrorCode.SEMESTER_NUMBER_PROTECTED,
             );
           }
 
