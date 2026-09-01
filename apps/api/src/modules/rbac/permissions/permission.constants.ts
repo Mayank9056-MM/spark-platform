@@ -205,6 +205,102 @@ export const PERMISSIONS = Object.freeze({
     'Delete Program',
     'Allows deleting an academic program.',
   ),
+  SEMESTER_CATALOG_CREATE: definePermission(
+    'semesterCatalog',
+    'create',
+    'Create Semester Catalog',
+    'Allows creating a new semester catalog entry.',
+  ),
+  SEMESTER_CATALOG_READ: definePermission(
+    'semesterCatalog',
+    'read',
+    'Read Semester Catalog',
+    'Allows viewing semester catalog details.',
+  ),
+  SEMESTER_CATALOG_UPDATE: definePermission(
+    'semesterCatalog',
+    'update',
+    'Update Semester Catalog',
+    "Allows updating a semester catalog entry's details.",
+  ),
+  SEMESTER_CATALOG_DELETE: definePermission(
+    'semesterCatalog',
+    'delete',
+    'Delete Semester Catalog',
+    'Allows deleting a semester catalog entry.',
+  ),
+  SUBJECT_CREATE: definePermission(
+    'subject',
+    'create',
+    'Create Subject',
+    'Allows creating a new subject.',
+  ),
+  SUBJECT_READ: definePermission(
+    'subject',
+    'read',
+    'Read Subject',
+    'Allows viewing subject details.',
+  ),
+  SUBJECT_UPDATE: definePermission(
+    'subject',
+    'update',
+    'Update Subject',
+    "Allows updating a subject's details.",
+  ),
+  SUBJECT_DELETE: definePermission(
+    'subject',
+    'delete',
+    'Delete Subject',
+    'Allows deleting a subject.',
+  ),
+  ELECTIVE_GROUP_CREATE: definePermission(
+    'electiveGroup',
+    'create',
+    'Create Elective Group',
+    'Allows creating a new elective group.',
+  ),
+  ELECTIVE_GROUP_READ: definePermission(
+    'electiveGroup',
+    'read',
+    'Read Elective Group',
+    'Allows viewing elective group details.',
+  ),
+  ELECTIVE_GROUP_UPDATE: definePermission(
+    'electiveGroup',
+    'update',
+    'Update Elective Group',
+    "Allows updating an elective group's details.",
+  ),
+  ELECTIVE_GROUP_DELETE: definePermission(
+    'electiveGroup',
+    'delete',
+    'Delete Elective Group',
+    'Allows deleting an elective group.',
+  ),
+  CURRICULUM_VERSION_CREATE: definePermission(
+    'curriculumVersion',
+    'create',
+    'Create Curriculum Version',
+    'Allows creating a new curriculum version.',
+  ),
+  CURRICULUM_VERSION_READ: definePermission(
+    'curriculumVersion',
+    'read',
+    'Read Curriculum Version',
+    'Allows viewing curriculum version details.',
+  ),
+  CURRICULUM_VERSION_UPDATE: definePermission(
+    'curriculumVersion',
+    'update',
+    'Update Curriculum Version',
+    "Allows updating a curriculum version's details.",
+  ),
+  CURRICULUM_VERSION_DELETE: definePermission(
+    'curriculumVersion',
+    'delete',
+    'Delete Curriculum Version',
+    'Allows deleting a curriculum version.',
+  ),
 } as const satisfies Record<string, PermissionCatalogEntry>);
 
 /**
