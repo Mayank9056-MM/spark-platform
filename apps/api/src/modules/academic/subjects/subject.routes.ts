@@ -3,8 +3,8 @@
 import { Router } from 'express';
 
 import { requireAuth } from '../../../middlewares/auth.middleware.js';
-import { requireInterimAdmin } from '../../../middlewares/interim-admin.guard.js';
 import { validate } from '../../../middlewares/validate.middleware.js';
+import { authorize } from '../../rbac/index.js';
 
 import * as subjectController from './subject.controller.js';
 import {
@@ -16,28 +16,31 @@ import {
 
 /**
  * HTTP route composition for the Subject module — pure composition only:
- * requireAuth → authorization guard → validate(schema, source) →
+ * requireAuth → authorize(resource, action) → validate(schema, source) →
  * controller. No Prisma, no repository/service calls, no audit logic, no
  * manual validation, and no business rules live here — those belong to
  * subject.service.ts / subject.repository.ts. The controller owns
  * ApiResponse construction; errors propagate to the centralized error
  * middleware, never caught here.
  *
- * ── AUTHORIZATION: INTERIM, NOT YET REGISTERED IN RBAC ────────────────
- * `AuthorizationResource` (authorization.types.ts) has no 'subject'
- * literal, and permission.constants.ts has no corresponding SUBJECT_*
- * catalog entries — confirmed by direct inspection, not assumed. This
- * router therefore uses `requireInterimAdmin` uniformly across all five
- * routes, mirroring semester.routes.ts's identical interim state for the
- * identical reason (same academic-module family, same unregistered
- * status).
+ * ── AUTHORIZATION: FIRST-CLASS RBAC RESOURCE ──────────────────────────
+ * Subject is now a first-class RBAC resource — migrated off the
+ * `requireInterimAdmin` stopgap the same way department.routes.ts /
+ * program.routes.ts were. `AuthorizationResource` includes the 'subject'
+ * literal, and permission.constants.ts defines the corresponding
+ * SUBJECT_* catalog entries. Routes use operation-specific permissions:
  *
- * Future migration, once a 'subject' resource + permissions are formally
- * registered (mirroring department.routes.ts's target mapping):
- *   requireInterimAdmin → authorize('subject', 'create')  // POST /
- *   requireInterimAdmin → authorize('subject', 'read')    // GET /, GET /:id
- *   requireInterimAdmin → authorize('subject', 'update')  // PATCH /:id
- *   requireInterimAdmin → authorize('subject', 'delete')  // DELETE /:id
+ *   POST /      → subject:create
+ *   GET /       → subject:read
+ *   GET /:id    → subject:read
+ *   PATCH /:id  → subject:update
+ *   DELETE /:id → subject:delete
+ *
+ * `authorize` is imported from `../../rbac/index.js`, not
+ * `../../rbac/authorization/authorization.middleware.js` directly —
+ * subject.routes.ts lives outside the rbac module (in academic/), so it
+ * crosses the module boundary through the public rbac/index.ts surface,
+ * same as department.routes.ts / program.routes.ts.
  */
 
 export const subjectRouter = Router();
@@ -46,28 +49,28 @@ subjectRouter.use(requireAuth);
 
 subjectRouter.post(
   '/',
-  requireInterimAdmin,
+  authorize('subject', 'create'),
   validate(createSubjectBodySchema),
   subjectController.createSubject,
 );
 
 subjectRouter.get(
   '/',
-  requireInterimAdmin,
+  authorize('subject', 'read'),
   validate(listSubjectsQuerySchema, 'query'),
   subjectController.listSubjects,
 );
 
 subjectRouter.get(
   '/:id',
-  requireInterimAdmin,
+  authorize('subject', 'read'),
   validate(subjectIdParamsSchema, 'params'),
   subjectController.getSubjectById,
 );
 
 subjectRouter.patch(
   '/:id',
-  requireInterimAdmin,
+  authorize('subject', 'update'),
   validate(subjectIdParamsSchema, 'params'),
   validate(updateSubjectBodySchema),
   subjectController.updateSubject,
@@ -75,7 +78,7 @@ subjectRouter.patch(
 
 subjectRouter.delete(
   '/:id',
-  requireInterimAdmin,
+  authorize('subject', 'delete'),
   validate(subjectIdParamsSchema, 'params'),
   subjectController.deleteSubject,
 );
