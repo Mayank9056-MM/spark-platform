@@ -17,6 +17,7 @@ export enum AuditEntityType {
   // program.service.ts.
   PROGRAM = 'Program',
   CURRICULUM_VERSION = 'CURRICULUM_VERSION',
+  SEMESTER_CATALOG = 'SemesterCatalog',
 }
 
 export interface RecordAuditInput {
