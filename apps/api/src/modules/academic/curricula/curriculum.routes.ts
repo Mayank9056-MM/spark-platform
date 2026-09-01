@@ -3,8 +3,8 @@
 import { Router } from 'express';
 
 import { requireAuth } from '../../../middlewares/auth.middleware.js';
-import { requireInterimAdmin } from '../../../middlewares/interim-admin.guard.js';
 import { validate } from '../../../middlewares/validate.middleware.js';
+import { authorize } from '../../rbac/index.js';
 
 import * as curriculumController from './curriculum.controller.js';
 import {
@@ -16,38 +16,34 @@ import {
 
 /**
  * HTTP route composition for the CurriculumVersion module — mirrors
- * department.routes.ts / program.routes.ts exactly in shape: every
- * handler below is requireAuth -> authorization -> validate(schema,
- * source) -> the corresponding curriculumController handler. No
- * business logic, Prisma access, repository/service calls, audit
- * logic, or manual validation lives in this file.
+ * department.routes.ts / program.routes.ts exactly: every handler below
+ * is requireAuth → authorize(resource, action) → validate(schema,
+ * source) → the corresponding curriculumController handler. No business
+ * logic, Prisma access, repository/service calls, audit logic, or
+ * manual validation lives in this file.
  *
- * RBAC gap (verified against the current repository, not assumed):
- * `AuthorizationResource` in authorization.types.ts does not include
- * 'curriculum', and the PERMISSIONS catalog in permission.constants.ts
- * has no curriculum:create/read/update/delete entries — only user,
- * role, permission, roleAssignment, department, and program are
- * registered. `authorize('curriculum', <action>)` is therefore not
- * expressible without an invalid resource literal or a type cast,
- * both of which are disallowed here, and this file must not edit
- * authorization.types.ts or permission.constants.ts to invent one.
+ * ── AUTHORIZATION: FIRST-CLASS RBAC RESOURCE ──────────────────────────
+ * CurriculumVersion is now a first-class RBAC resource — migrated off
+ * the `requireInterimAdmin` stopgap the same way department.routes.ts /
+ * program.routes.ts / semester.routes.ts / subject.routes.ts /
+ * elective.routes.ts were. `AuthorizationResource` includes the
+ * 'curriculumVersion' literal (the full model name, camelCased — the
+ * same convention as 'semesterCatalog' and 'electiveGroup', not a
+ * shortened 'curriculum'), and permission.constants.ts defines the
+ * corresponding CURRICULUM_VERSION_* catalog entries. Routes use
+ * operation-specific permissions:
  *
- * This router falls back to requireInterimAdmin
- * (../../../middlewares/interim-admin.guard.js) — the same interim
- * guard program.routes.ts's own comments confirm was this codebase's
- * established convention for an academic resource before it was
- * registered in RBAC ("requireInterimAdmin has been fully retired
- * from this router ... now that Program is a first-class RBAC
- * resource"). requireInterimAdmin is not operation-specific (it only
- * checks for an active admin/super_admin role assignment), so it is
- * applied uniformly to all five routes below rather than varying by
- * action.
+ *   POST /      → curriculumVersion:create
+ *   GET /       → curriculumVersion:read
+ *   GET /:id    → curriculumVersion:read
+ *   PATCH /:id  → curriculumVersion:update
+ *   DELETE /:id → curriculumVersion:delete
  *
- * Future work (outside this file's scope): once 'curriculum' is added
- * to AuthorizationResource and curriculum:create/read/update/delete
- * are added to PERMISSIONS, replace every requireInterimAdmin below
- * with authorize('curriculum', 'create' | 'read' | 'update' |
- * 'delete'), matching department.routes.ts / program.routes.ts.
+ * `authorize` is imported from `../../rbac/index.js`, not
+ * `../../rbac/authorization/authorization.middleware.js` directly —
+ * curriculum.routes.ts lives outside the rbac module (in academic/), so
+ * it crosses the module boundary through the public rbac/index.ts
+ * surface, same as department.routes.ts / program.routes.ts.
  */
 
 export const curriculumRouter = Router();
@@ -56,28 +52,28 @@ curriculumRouter.use(requireAuth);
 
 curriculumRouter.post(
   '/',
-  requireInterimAdmin,
+  authorize('curriculumVersion', 'create'),
   validate(createCurriculumVersionBodySchema),
   curriculumController.createCurriculumVersion,
 );
 
 curriculumRouter.get(
   '/',
-  requireInterimAdmin,
+  authorize('curriculumVersion', 'read'),
   validate(listCurriculumVersionsQuerySchema, 'query'),
   curriculumController.listCurriculumVersions,
 );
 
 curriculumRouter.get(
   '/:id',
-  requireInterimAdmin,
+  authorize('curriculumVersion', 'read'),
   validate(curriculumVersionIdParamsSchema, 'params'),
   curriculumController.getCurriculumVersionById,
 );
 
 curriculumRouter.patch(
   '/:id',
-  requireInterimAdmin,
+  authorize('curriculumVersion', 'update'),
   validate(curriculumVersionIdParamsSchema, 'params'),
   validate(updateCurriculumVersionBodySchema),
   curriculumController.updateCurriculumVersion,
@@ -85,7 +81,7 @@ curriculumRouter.patch(
 
 curriculumRouter.delete(
   '/:id',
-  requireInterimAdmin,
+  authorize('curriculumVersion', 'delete'),
   validate(curriculumVersionIdParamsSchema, 'params'),
   curriculumController.deleteCurriculumVersion,
 );
