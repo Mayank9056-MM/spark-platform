@@ -33,4 +33,9 @@ export enum ErrorCode {
 
   ACCOUNT_LOCKED = 'ACCOUNT_LOCKED',
   ACCOUNT_PENDING_ACTIVATION = 'ACCOUNT_PENDING_ACTIVATION',
+
+  // Domain business-rule conflicts — the request is structurally valid
+  // and doesn't collide with another record (that's DUPLICATE_ENTRY),
+  // but a domain invariant blocks it anyway.
+  SEMESTER_NUMBER_PROTECTED = 'SEMESTER_NUMBER_PROTECTED',
 }

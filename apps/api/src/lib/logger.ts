@@ -25,3 +25,4 @@ export const roleLogger = createChildLogger({ component: 'role' });
 export const departmentLogger = createChildLogger({ component: 'department' });
 export const programLogger = createChildLogger({ component: 'program' });
 export const curriculumLogger = createChildLogger({ component: 'curriculum' });
+export const semesterCatalogLogger = createChildLogger({ component: 'semester-catalog' });
