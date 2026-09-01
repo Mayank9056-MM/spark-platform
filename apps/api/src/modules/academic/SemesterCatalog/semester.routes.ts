@@ -3,8 +3,8 @@
 import { Router } from 'express';
 
 import { requireAuth } from '../../../middlewares/auth.middleware.js';
-import { requireInterimAdmin } from '../../../middlewares/interim-admin.guard.js';
 import { validate } from '../../../middlewares/validate.middleware.js';
+import { authorize } from '../../rbac/index.js';
 
 import * as semesterCatalogController from './semester.controller.js';
 import {
@@ -16,30 +16,32 @@ import {
 
 /**
  * HTTP route composition for the SemesterCatalog module — pure
- * composition only: requireAuth → authorization guard →
+ * composition only: requireAuth → authorize(resource, action) →
  * validate(schema, source) → controller. No Prisma, no repository/service
  * calls, no audit logic, no manual validation, and no business rules live
  * here — those belong to semester.service.ts / semester.repository.ts.
  * Controllers own ApiResponse construction; errors propagate to the
  * centralized error middleware, never caught here.
  *
- * ── AUTHORIZATION: INTERIM, NOT YET REGISTERED IN RBAC ────────────────
- * Unlike department.routes.ts / program.routes.ts (both migrated to
- * operation-specific `authorize(resource, action)`), SemesterCatalog is
- * NOT yet a registered RBAC resource: `AuthorizationResource`
- * (authorization.types.ts) has no 'semesterCatalog' literal, and
- * permission.constants.ts has no corresponding SEMESTER_CATALOG_*
- * catalog entries. Inventing either — or casting past the missing
- * literal — is out of scope for this change. This router therefore uses
- * `requireInterimAdmin` uniformly across all five routes, the same
- * interim stopgap user.routes.ts still uses for the identical reason.
+ * ── AUTHORIZATION: FIRST-CLASS RBAC RESOURCE ──────────────────────────
+ * SemesterCatalog is now a first-class RBAC resource — migrated off the
+ * `requireInterimAdmin` stopgap the same way department.routes.ts /
+ * program.routes.ts were. `AuthorizationResource` (authorization.types.ts)
+ * includes the 'semesterCatalog' literal, and permission.constants.ts
+ * defines the corresponding SEMESTER_CATALOG_* catalog entries. Routes
+ * use operation-specific permissions:
  *
- * Future migration, once a SemesterCatalog resource + permissions are
- * formally registered (mirroring department.routes.ts's mapping):
- *   requireInterimAdmin → authorize('semesterCatalog', 'create')  // POST /
- *   requireInterimAdmin → authorize('semesterCatalog', 'read')    // GET /, GET /:id
- *   requireInterimAdmin → authorize('semesterCatalog', 'update')  // PATCH /:id
- *   requireInterimAdmin → authorize('semesterCatalog', 'delete')  // DELETE /:id
+ *   POST /      → semesterCatalog:create
+ *   GET /       → semesterCatalog:read
+ *   GET /:id    → semesterCatalog:read
+ *   PATCH /:id  → semesterCatalog:update
+ *   DELETE /:id → semesterCatalog:delete
+ *
+ * `authorize` is imported from `../../rbac/index.js`, not
+ * `../../rbac/authorization/authorization.middleware.js` directly —
+ * semester.routes.ts lives outside the rbac module (in academic/), so it
+ * crosses the module boundary through the public rbac/index.ts surface,
+ * same as department.routes.ts / program.routes.ts.
  */
 
 export const semesterCatalogRouter = Router();
@@ -48,28 +50,28 @@ semesterCatalogRouter.use(requireAuth);
 
 semesterCatalogRouter.post(
   '/',
-  requireInterimAdmin,
+  authorize('semesterCatalog', 'create'),
   validate(createSemesterCatalogBodySchema),
   semesterCatalogController.createSemesterCatalog,
 );
 
 semesterCatalogRouter.get(
   '/',
-  requireInterimAdmin,
+  authorize('semesterCatalog', 'read'),
   validate(listSemesterCatalogsQuerySchema, 'query'),
   semesterCatalogController.listSemesterCatalogs,
 );
 
 semesterCatalogRouter.get(
   '/:id',
-  requireInterimAdmin,
+  authorize('semesterCatalog', 'read'),
   validate(semesterCatalogIdParamsSchema, 'params'),
   semesterCatalogController.getSemesterCatalogById,
 );
 
 semesterCatalogRouter.patch(
   '/:id',
-  requireInterimAdmin,
+  authorize('semesterCatalog', 'update'),
   validate(semesterCatalogIdParamsSchema, 'params'),
   validate(updateSemesterCatalogBodySchema),
   semesterCatalogController.updateSemesterCatalog,
@@ -77,7 +79,7 @@ semesterCatalogRouter.patch(
 
 semesterCatalogRouter.delete(
   '/:id',
-  requireInterimAdmin,
+  authorize('semesterCatalog', 'delete'),
   validate(semesterCatalogIdParamsSchema, 'params'),
   semesterCatalogController.deleteSemesterCatalog,
 );
