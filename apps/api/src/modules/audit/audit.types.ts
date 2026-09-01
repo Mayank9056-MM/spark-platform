@@ -18,6 +18,7 @@ export enum AuditEntityType {
   PROGRAM = 'Program',
   CURRICULUM_VERSION = 'CURRICULUM_VERSION',
   SEMESTER_CATALOG = 'SemesterCatalog',
+  SUBJECT = 'Subject',
 }
 
 export interface RecordAuditInput {
