@@ -1,24 +1,35 @@
-export interface PaginationParams {
-  page: number;
-  limit: number;
+export type AcademicYearId = string;
+
+export interface AcademicYearDTO {
+  readonly id: AcademicYearId;
+  readonly name: string;
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly isActive: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
 }
 
-export interface PaginationMeta extends PaginationParams {
-  total: number;
-  totalPages: number;
+export interface CreateAcademicYearInput {
+  readonly label: string;
+  readonly startDate: string;
+  readonly endDate: string;
 }
 
-export function buildPaginationMeta(params: PaginationParams, total: number): PaginationMeta {
-  return {
-    ...params,
-    total,
-    totalPages: Math.ceil(total / params.limit),
-  };
+export interface UpdateAcademicYearInput {
+  readonly label?: string;
+  readonly startDate?: string;
+  readonly endDate?: string;
 }
 
-/** Parses page/limit query params with sane defaults and bounds. */
-export function parsePaginationQuery(query: Record<string, unknown>): PaginationParams {
-  const page = Math.max(1, Number(query.page) || 1);
-  const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
-  return { page, limit };
+export interface ListAcademicYearsInput {
+  readonly page: number;
+  readonly limit: number;
+  readonly sortBy: 'label' | 'startDate' | 'createdAt';
+  readonly sortOrder: 'asc' | 'desc';
+}
+
+export interface ListAcademicYearsResult {
+  readonly academicYears: AcademicYearDTO[];
+  readonly total: number;
 }

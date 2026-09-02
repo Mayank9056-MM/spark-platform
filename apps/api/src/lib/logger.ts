@@ -28,3 +28,4 @@ export const curriculumLogger = createChildLogger({ component: 'curriculum' });
 export const semesterCatalogLogger = createChildLogger({ component: 'semester-catalog' });
 export const subjectLogger = createChildLogger({ component: 'subject' });
 export const electiveGroupLogger = createChildLogger({ component: 'elective-group' });
+export const academicYearLogger = createChildLogger({ component: 'academic-year' });

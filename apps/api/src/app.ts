@@ -21,6 +21,7 @@ import {
   semesterCatalogRouter,
   subjectRouter,
 } from './modules/academic/index.js';
+import { academicYearRouter } from './modules/academic-years/academic-year.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { permissionRouter, roleAssignmentRouter, roleRouter } from './modules/rbac/index.js';
 import { userRouter } from './modules/user/user.routes.js';
@@ -88,6 +89,7 @@ export function createServer(): Express {
   app.use('/api/v1/academic/semester-catalogs', semesterCatalogRouter);
   app.use('/api/v1/academic/subjects', subjectRouter);
   app.use('/api/v1/academic/electives', electiveGroupRouter);
+  app.use('/api/v1/academic/academic-years', academicYearRouter);
 
   // Route-not-found must go through the SAME error pipeline as every other
   // error (Phase 11) — a bare res.json() here previously produced a

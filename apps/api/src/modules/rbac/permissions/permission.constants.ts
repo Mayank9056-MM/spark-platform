@@ -301,6 +301,36 @@ export const PERMISSIONS = Object.freeze({
     'Delete Curriculum Version',
     'Allows deleting a curriculum version.',
   ),
+  ACADEMIC_YEAR_CREATE: definePermission(
+    'academicYear',
+    'create',
+    'Create Academic Year',
+    'Allows creating a new academic year.',
+  ),
+  ACADEMIC_YEAR_READ: definePermission(
+    'academicYear',
+    'read',
+    'Read Academic Year',
+    'Allows viewing academic year details.',
+  ),
+  ACADEMIC_YEAR_UPDATE: definePermission(
+    'academicYear',
+    'update',
+    'Update Academic Year',
+    "Allows updating an academic year's label or date range.",
+  ),
+  ACADEMIC_YEAR_DELETE: definePermission(
+    'academicYear',
+    'delete',
+    'Delete Academic Year',
+    'Allows deleting an academic year that is inactive and unreferenced.',
+  ),
+  ACADEMIC_YEAR_ACTIVATE: definePermission(
+    'academicYear',
+    'activate',
+    'Activate Academic Year',
+    "Allows making an academic year the college's current active year.",
+  ),
 } as const satisfies Record<string, PermissionCatalogEntry>);
 
 /**

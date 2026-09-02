@@ -24,7 +24,8 @@ export type ResourceId = string;
 // Action / Resource
 // ─────────────────────────────────────────────────────────────────────────
 
-export type AuthorizationAction = 'create' | 'read' | 'update' | 'delete' | 'archive' | 'restore';
+export type AuthorizationAction =
+  'create' | 'read' | 'update' | 'delete' | 'archive' | 'restore' | 'activate';
 
 export type AuthorizationResource =
   | 'user'
@@ -37,6 +38,7 @@ export type AuthorizationResource =
   | 'semesterCatalog'
   | 'subject'
   | 'electiveGroup'
+  | 'academicYear'
   | 'student'
   | 'faculty'
   | 'attendance'

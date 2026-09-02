@@ -20,6 +20,7 @@ export enum AuditEntityType {
   SEMESTER_CATALOG = 'SemesterCatalog',
   SUBJECT = 'Subject',
   ELECTIVE_GROUP = 'ElectiveGroup',
+  ACADEMIC_YEAR = 'AcademicYear',
 }
 
 export interface RecordAuditInput {
