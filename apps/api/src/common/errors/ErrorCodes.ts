@@ -38,4 +38,6 @@ export enum ErrorCode {
   // and doesn't collide with another record (that's DUPLICATE_ENTRY),
   // but a domain invariant blocks it anyway.
   SEMESTER_NUMBER_PROTECTED = 'SEMESTER_NUMBER_PROTECTED',
+  ACADEMIC_YEAR_ACTIVE_PROTECTED = 'ACADEMIC_YEAR_ACTIVE_PROTECTED',
+  ACADEMIC_YEAR_HAS_REFERENCES = 'ACADEMIC_YEAR_HAS_REFERENCES',
 }
