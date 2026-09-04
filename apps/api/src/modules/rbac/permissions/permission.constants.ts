@@ -331,6 +331,30 @@ export const PERMISSIONS = Object.freeze({
     'Activate Academic Year',
     "Allows making an academic year the college's current active year.",
   ),
+  ADMISSION_CREATE: definePermission(
+    'admission',
+    'create',
+    'Create Admission',
+    'Allows recording a new student admission.',
+  ),
+  ADMISSION_READ: definePermission(
+    'admission',
+    'read',
+    'Read Admission',
+    'Allows viewing admission records.',
+  ),
+  ADMISSION_UPDATE: definePermission(
+    'admission',
+    'update',
+    'Update Admission',
+    'Allows updating the admission date or quota of a confirmed admission.',
+  ),
+  ADMISSION_CANCEL: definePermission(
+    'admission',
+    'cancel',
+    'Cancel Admission',
+    'Allows cancelling a confirmed admission. Cancellation is permanent and cannot be reversed.',
+  ),
 } as const satisfies Record<string, PermissionCatalogEntry>);
 
 /**
