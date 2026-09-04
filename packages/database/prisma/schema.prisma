@@ -49,7 +49,7 @@ model User {
   sessions           Session[]
   verificationTokens VerificationToken[]
 
-  admission             Admission?              @relation("AdmittedStudent")
+  admission             Admission[]             @relation("AdmittedStudent")
   admissionsProcessed   Admission[]             @relation("AdmittedBy")
   studentEnrollments    StudentEnrollment[]
   promotionBatches      PromotionBatch[]
@@ -352,7 +352,7 @@ enum AdmissionQuota {
 // permanently distinct from their ongoing academic lifecycle.
 model Admission {
   id                     String          @id @default(uuid())
-  userId                 String          @unique
+  userId                 String
   admissionNumber        String
   admissionDate          DateTime
   admissionType          AdmissionType
@@ -383,6 +383,7 @@ model Admission {
   // admission time, unchanged in spirit by this refactor.
 
   @@unique([admissionNumber])
+  @@index([userId])
   @@map("admissions")
 }
 
@@ -393,16 +394,16 @@ enum StudentLifecycleStatus {
   DISCONTINUED
   GRADUATED
   ALUMNI
+  CANCELLED
 }
 
 model StudentEnrollment {
-  id                  String    @id @default(uuid())
+  id                  String @id @default(uuid())
+  admissionId         String @unique
   userId              String
   programId           String
   curriculumVersionId String // locked at admission time; a later curriculum
   // revision does NOT retroactively change this student's syllabus
-  admissionId         String    @unique
-  admission           Admission @relation(fields: [admissionId], references: [id])
 
   rollNumber      String
   admissionDate   DateTime
@@ -411,6 +412,7 @@ model StudentEnrollment {
   statusChangedAt DateTime?
 
   user                User                 @relation(fields: [userId], references: [id])
+  admission           Admission            @relation(fields: [admissionId], references: [id])
   program             Program              @relation(fields: [programId], references: [id])
   curriculumVersion   CurriculumVersion    @relation(fields: [curriculumVersionId], references: [id])
   semesterEnrollments SemesterEnrollment[]
