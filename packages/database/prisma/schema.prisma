@@ -366,11 +366,12 @@ model Admission {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user                 User              @relation("AdmittedStudent", fields: [userId], references: [id])
-  admittedBy           User              @relation("AdmittedBy", fields: [admittedByUserId], references: [id])
-  initialProgram       Program           @relation(fields: [initialProgramId], references: [id])
-  initialCurriculum    CurriculumVersion @relation(fields: [initialCurriculumId], references: [id])
-  entrySemesterCatalog SemesterCatalog   @relation(fields: [entrySemesterCatalogId], references: [id])
+  studentEnrollment    StudentEnrollment?
+  user                 User               @relation("AdmittedStudent", fields: [userId], references: [id])
+  admittedBy           User               @relation("AdmittedBy", fields: [admittedByUserId], references: [id])
+  initialProgram       Program            @relation(fields: [initialProgramId], references: [id])
+  initialCurriculum    CurriculumVersion  @relation(fields: [initialCurriculumId], references: [id])
+  entrySemesterCatalog SemesterCatalog    @relation(fields: [entrySemesterCatalogId], references: [id])
   // entrySemesterCatalog is independent of admissionType — e.g. LATERAL
   // does not imply Semester 3, EXCEPTION does not imply Semester 5.
   // Business rules for which (admissionType, entrySemesterCatalog)
@@ -395,11 +396,13 @@ enum StudentLifecycleStatus {
 }
 
 model StudentEnrollment {
-  id                  String @id @default(uuid())
+  id                  String    @id @default(uuid())
   userId              String
   programId           String
   curriculumVersionId String // locked at admission time; a later curriculum
   // revision does NOT retroactively change this student's syllabus
+  admissionId         String    @unique
+  admission           Admission @relation(fields: [admissionId], references: [id])
 
   rollNumber      String
   admissionDate   DateTime
