@@ -23,6 +23,7 @@ export enum AuditEntityType {
   ACADEMIC_YEAR = 'AcademicYear',
   ADMISSION = 'Admission', // pre-existing gap — createAdmission already needed this
   STUDENT_ENROLLMENT = 'StudentEnrollment',
+  SEMESTER_ENROLLMENT = 'SemesterEnrollment', // pre-existing gap — createSemesterEnrollment already needed this
 }
 
 export interface RecordAuditInput {
