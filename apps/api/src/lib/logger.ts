@@ -31,3 +31,4 @@ export const electiveGroupLogger = createChildLogger({ component: 'elective-grou
 export const academicYearLogger = createChildLogger({ component: 'academic-year' });
 export const admissionLogger = createChildLogger({ component: 'admission' });
 export const studentEnrollmentLogger = createChildLogger({ component: 'student-enrollment' });
+export const semesterEnrollmentLogger = createChildLogger({ component: 'semester-enrollment' });
