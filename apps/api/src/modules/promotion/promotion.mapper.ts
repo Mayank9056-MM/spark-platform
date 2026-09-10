@@ -24,10 +24,12 @@ export function toPromotionBatchDTO(batch: PromotionBatch): PromotionBatchDTO {
   };
 }
 
+/** Maps promotion batches to their API-safe DTO representation. */
 export function toPromotionBatchDTOList(batches: readonly PromotionBatch[]): PromotionBatchDTO[] {
   return batches.map(toPromotionBatchDTO);
 }
 
+/** Maps a promotion decision to its API-safe DTO representation. */
 export function toPromotionDecisionDTO(decision: PromotionDecision): PromotionDecisionDTO {
   return {
     id: decision.id,
@@ -43,6 +45,7 @@ export function toPromotionDecisionDTO(decision: PromotionDecision): PromotionDe
   };
 }
 
+/** Maps promotion decisions to their API-safe DTO representation. */
 export function toPromotionDecisionDTOList(
   decisions: readonly PromotionDecision[],
 ): PromotionDecisionDTO[] {
