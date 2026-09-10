@@ -47,9 +47,12 @@ export interface CreateStudentEnrollmentPersistenceInput {
 
 /**
  * No delete operation — StudentEnrollment is permanent historical academic
- * data; ACTIVE -> CANCELLED and ACTIVE -> WITHDRAWN are the only terminal
- * transitions, each a dedicated atomic command, never a generic status
- * setter.
+ * data; ACTIVE -> CANCELLED, ACTIVE -> WITHDRAWN, ACTIVE -> DISCONTINUED,
+ * and ACTIVE -> GRADUATED are the only terminal transitions, each a
+ * dedicated atomic command, never a generic status setter. The latter two
+ * (`discontinue`/`graduate`) exist solely to support promotion batch
+ * finalization's DISCONTINUE/GRADUATE outcomes — called only from
+ * PromotionService, inside that transaction.
  *
  * userId is NOT unique: a User may accumulate multiple StudentEnrollment
  * rows over a lifetime. `findActiveByUserId`/`findActiveByUserIdTx` use
@@ -172,6 +175,41 @@ export class StudentEnrollmentRepository {
     const { count } = await tx.studentEnrollment.updateMany({
       where: { id, status: 'ACTIVE' },
       data: { status: 'WITHDRAWN', statusReason: reason, statusChangedAt: new Date() },
+    });
+    if (count === 0) {
+      return null;
+    }
+    return tx.studentEnrollment.findUniqueOrThrow({ where: { id } });
+  }
+
+  /**
+   * ACTIVE -> DISCONTINUED. Same atomic-guard shape as cancel()/withdraw()
+   * above. Called only from promotion batch finalization's DISCONTINUE
+   * outcome, inside that transaction — not exposed through any generic
+   * status-update path.
+   */
+  async discontinue(tx: Db, id: string, reason: string): Promise<StudentEnrollment | null> {
+    const { count } = await tx.studentEnrollment.updateMany({
+      where: { id, status: 'ACTIVE' },
+      data: { status: 'DISCONTINUED', statusReason: reason, statusChangedAt: new Date() },
+    });
+    if (count === 0) {
+      return null;
+    }
+    return tx.studentEnrollment.findUniqueOrThrow({ where: { id } });
+  }
+
+  /**
+   * ACTIVE -> GRADUATED. Same atomic-guard shape as cancel()/withdraw()
+   * above, but takes no reason — graduation is a positive terminal
+   * outcome, not an early exit requiring justification, matching the
+   * schema's own nullable statusReason. Called only from promotion batch
+   * finalization's GRADUATE outcome, inside that transaction.
+   */
+  async graduate(tx: Db, id: string): Promise<StudentEnrollment | null> {
+    const { count } = await tx.studentEnrollment.updateMany({
+      where: { id, status: 'ACTIVE' },
+      data: { status: 'GRADUATED', statusChangedAt: new Date() },
     });
     if (count === 0) {
       return null;
