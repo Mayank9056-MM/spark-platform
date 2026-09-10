@@ -51,6 +51,7 @@ function parseTrustProxy(value: string): boolean | number | string {
   return value;
 }
 
+/** Creates and configures the Express application and its API routes. */
 export function createServer(): Express {
   const app = express();
 
