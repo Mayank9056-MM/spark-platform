@@ -7,6 +7,7 @@ import { prisma } from '../../lib/prisma.js';
 import type {
   ListSemesterEnrollmentsFilters,
   ListSemesterEnrollmentsOptions,
+  SemesterEnrollmentStatus,
 } from './semesterEnrollment.types.js';
 
 /**
@@ -40,11 +41,21 @@ export interface CreateSemesterEnrollmentPersistenceInput {
 }
 
 /**
- * No update or delete operation — SemesterEnrollment is permanent
+ * No generic update or delete operation — SemesterEnrollment is permanent
  * historical academic data. `studentEnrollmentId`, `semesterCatalogId`,
- * `academicYearId`, and `attemptNumber` are fixed at creation; `status`
- * changes exclusively through the (separate, not-yet-implemented) promotion
- * workflow, never a generic setter here.
+ * `academicYearId`, and `attemptNumber` are fixed at creation.
+ *
+ * `status` changes exclusively through the five narrowly-named guarded
+ * transitions below (`markPromoted`/`markRepeated`/`markWithdrawn`/
+ * `markDiscontinued`/`markGraduated`), each of which only ever moves a
+ * row out of `IN_PROGRESS` into exactly one terminal-for-this-attempt
+ * status — mirroring `StudentEnrollmentRepository.cancel()`/`.withdraw()`'s
+ * identical guarded-updateMany shape. There is deliberately no generic
+ * `transition(tx, id, toStatus)` — that would let a caller drive this
+ * model into an arbitrary status; every public entry point instead names
+ * exactly one legal transition, matching this domain's promotion-outcome
+ * semantics one-to-one. All five are called only from promotion batch
+ * finalization, inside that transaction.
  *
  * `(studentEnrollmentId, semesterCatalogId)` is NOT unique — a student can
  * accumulate multiple attempts at the same curriculum semester over time.
@@ -118,7 +129,9 @@ export class SemesterEnrollmentRepository {
    *
    * Must be called with `tx`, not the plain singleton — allocation is only
    * meaningful as part of the same transaction that performs the
-   * subsequent insert.
+   * subsequent insert. Reused as-is by PromotionService for both PROMOTE
+   * (target semesterCatalogId differs from source) and REPEAT (target
+   * semesterCatalogId equals source) — no duplicate MAX+1 logic.
    */
   async getNextAttemptNumberTx(
     tx: Db,
@@ -153,6 +166,56 @@ export class SemesterEnrollmentRepository {
         attemptNumber: input.attemptNumber,
       },
     });
+  }
+
+  /** IN_PROGRESS -> PROMOTED. See class header for the guard shape and calling convention. */
+  async markPromoted(tx: Db, id: string): Promise<SemesterEnrollment | null> {
+    return this.transitionFromInProgress(tx, id, 'PROMOTED');
+  }
+
+  /** IN_PROGRESS -> REPEATED. See class header for the guard shape and calling convention. */
+  async markRepeated(tx: Db, id: string): Promise<SemesterEnrollment | null> {
+    return this.transitionFromInProgress(tx, id, 'REPEATED');
+  }
+
+  /** IN_PROGRESS -> WITHDRAWN. See class header for the guard shape and calling convention. */
+  async markWithdrawn(tx: Db, id: string): Promise<SemesterEnrollment | null> {
+    return this.transitionFromInProgress(tx, id, 'WITHDRAWN');
+  }
+
+  /** IN_PROGRESS -> DISCONTINUED. See class header for the guard shape and calling convention. */
+  async markDiscontinued(tx: Db, id: string): Promise<SemesterEnrollment | null> {
+    return this.transitionFromInProgress(tx, id, 'DISCONTINUED');
+  }
+
+  /** IN_PROGRESS -> GRADUATED. See class header for the guard shape and calling convention. */
+  async markGraduated(tx: Db, id: string): Promise<SemesterEnrollment | null> {
+    return this.transitionFromInProgress(tx, id, 'GRADUATED');
+  }
+
+  /**
+   * Shared guard behind the five `mark*` methods above — deliberately
+   * private and not exposed as a public generic transition method (see
+   * class header). `updateMany` (not `update`) because `update`'s `where`
+   * only accepts unique fields and cannot express "and status is still
+   * IN_PROGRESS" as a precondition, mirroring
+   * `PromotionBatchRepository.finalize`'s identical shape. `null` means
+   * either the id doesn't exist or the row was not IN_PROGRESS at the
+   * moment of this statement.
+   */
+  private async transitionFromInProgress(
+    tx: Db,
+    id: string,
+    toStatus: SemesterEnrollmentStatus,
+  ): Promise<SemesterEnrollment | null> {
+    const { count } = await tx.semesterEnrollment.updateMany({
+      where: { id, status: 'IN_PROGRESS' },
+      data: { status: toStatus },
+    });
+    if (count === 0) {
+      return null;
+    }
+    return tx.semesterEnrollment.findUniqueOrThrow({ where: { id } });
   }
 
   /**
