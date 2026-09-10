@@ -113,7 +113,6 @@ const curriculumVersionLabelSchema = z
 export const createCurriculumVersionBodySchema = z.object({
   programId: z.uuid(),
   label: curriculumVersionLabelSchema,
-  status: curriculumStatusSchema.optional(),
 });
 export type CreateCurriculumVersionBody = z.infer<typeof createCurriculumVersionBodySchema>;
 
@@ -130,7 +129,6 @@ export type CreateCurriculumVersionBody = z.infer<typeof createCurriculumVersion
 export const updateCurriculumVersionBodySchema = z
   .object({
     label: curriculumVersionLabelSchema.optional(),
-    status: curriculumStatusSchema.optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: 'At least one field must be provided',
