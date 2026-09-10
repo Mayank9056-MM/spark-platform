@@ -105,75 +105,38 @@ export interface CurriculumVersionDTO {
 
 /**
  * Fields a caller may supply when creating a CurriculumVersion. `id`,
- * `createdAt`, and `updatedAt` are database-generated and excluded,
- * matching `CreateDepartmentInput`/`CreateProgramInput`'s convention.
+ * `createdAt`, `updatedAt` are database-generated and excluded.
  *
- * `programId` is required — `CurriculumVersion.programId` has no `?`
- * and no default in the schema, so a CurriculumVersion cannot be created
- * without referencing an existing Program. It is accepted as a plain id
- * (`program: {...}` nested-creation is not offered), matching
- * `CreateProgramInput.departmentId`'s convention: a CurriculumVersion
- * references an existing Program rather than implicitly creating one.
- *
- * `label` is required — `CurriculumVersion.label` has no default and no
- * `?` in the schema.
- *
- * `status` is optional, NOT excluded. Unlike `RoleDTO.isSystemDefined`
- * (excluded from `CreateRoleInput` because it is a caller-must-never-set
- * protection flag), nothing in the schema or this repository marks
- * `status` as a protected/server-only field — it is a plain column with
- * a DB default (`@default(DRAFT)`). Leaving it optional lets a caller
- * either rely on that default or, if a real workflow requires creating a
- * version directly in a non-DRAFT state, specify it explicitly.
- * Whether such a workflow actually exists is not confirmed by anything
- * available in this repository — flagged as an open assumption.
+ * `status` is INTENTIONALLY excluded (previously optional). Curriculum
+ * hardening establishes a real lifecycle (DRAFT -> ACTIVE -> RETIRED,
+ * one-way, via dedicated activate/retire commands only). Accepting a
+ * client-supplied initial status here would let a caller create a
+ * version directly as ACTIVE or RETIRED, bypassing that lifecycle
+ * entirely. Every CurriculumVersion is now created DRAFT — the schema's
+ * own `@default(DRAFT)` — with no exception.
  */
 export interface CreateCurriculumVersionInput {
   readonly programId: ProgramId;
   readonly label: string;
-  readonly status?: CurriculumStatus;
 }
 
 /**
- * Mutable CurriculumVersion fields.
+ * Mutable CurriculumVersion fields via the generic update path.
  *
- * `programId` is EXCLUDED, not merely flagged — the same reasoning
- * `program.types.ts` applies to excluding `departmentId` from
- * `UpdateProgramInput`. `StudentEnrollment.curriculumVersionId` and
- * `Admission.initialCurriculumId` already reference a CurriculumVersion
- * by id, and the schema's own comment on `StudentEnrollment` states this
- * is locked at admission time specifically so a later curriculum change
- * never retroactively changes a student's syllabus. Reassigning an
- * existing CurriculumVersion row to a different Program after those
- * references exist would silently corrupt that historical meaning, with
- * no schema-level cascade or guard against it. The domain model gives no
- * operation for moving a CurriculumVersion between Programs, so this
- * contract doesn't invent one.
+ * `status` is EXCLUDED, not merely flagged. Lifecycle transitions are
+ * now real: DRAFT -> ACTIVE -> RETIRED, one-way, enforced by
+ * curriculum.service.ts's dedicated `activateCurriculumVersion`/
+ * `retireCurriculumVersion`. Allowing `status` through this generic
+ * PATCH would let a client set any status value directly, bypassing
+ * both the transition legality checks and the audit semantics those
+ * dedicated methods provide.
  *
- * `label` is INCLUDED, not excluded. Nothing in the schema or this
- * repository establishes `label` as an external stable identifier the
- * way `department.types.ts` argues for `Department.code` (transcripts/
- * admission records referencing it directly) — a CurriculumVersion is
- * referenced elsewhere in the schema strictly by `id`
- * (`curriculumVersionId` / `initialCurriculumId`), never by `label`.
- * Left mutable; the `@@unique([programId, label])` constraint still
- * applies and must be enforced by the repository on update, same as on
- * create.
- *
- * `status` is INCLUDED. TypeScript cannot enforce which transitions are
- * legal (e.g. whether RETIRED -> DRAFT should be rejected) — that is a
- * service-layer state-machine concern, not something this contract
- * encodes, matching this task's own instruction not to bake business
- * rules into types.
- *
- * Optional fields use `field?: type`, not `field?: type | undefined`,
- * per the project's `exactOptionalPropertyTypes: true` convention,
- * matching `UpdateDepartmentInput`/`UpdateProgramInput`'s established
- * pattern exactly.
+ * `label` remains here structurally, but curriculum.service.ts now
+ * additionally rejects this entire update once the CurriculumVersion is
+ * no longer DRAFT — see that file's `updateCurriculumVersion`.
  */
 export interface UpdateCurriculumVersionInput {
   readonly label?: string;
-  readonly status?: CurriculumStatus;
 }
 
 /**

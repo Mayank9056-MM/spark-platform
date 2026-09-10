@@ -221,6 +221,49 @@ export class SemesterCatalogRepository {
   }
 
   /**
+   * Reports whether this SemesterCatalog has become part of real
+   * institutional academic history — as opposed to `hasDependentRecords`
+   * above, which also counts this catalog's OWN Subject/ElectiveGroup
+   * rows and exists to protect `number` from silent reinterpretation.
+   * Counting Subject/ElectiveGroup here would make every catalog
+   * "historical" the instant its first subject is added, which would
+   * block the pre-history configuration curriculum.service.ts/
+   * subject.service.ts/elective.service.ts must still allow.
+   *
+   * Deliberately checks only rows that represent an actual academic
+   * event against this semester: SemesterEnrollment (a student sat
+   * it), PromotionBatch (a promotion round processed it),
+   * Admission.entrySemesterCatalogId (a student entered through it),
+   * Timetable/Lecture (teaching has been scheduled against it). Subject
+   * and ElectiveGroup counts are intentionally excluded — they are the
+   * structure this check exists to protect, not evidence it needs
+   * protecting.
+   */
+  async hasHistoricalUsage(tx: Db, id: SemesterCatalogId): Promise<boolean> {
+    const [
+      semesterEnrollmentCount,
+      promotionBatchCount,
+      admissionCount,
+      timetableCount,
+      lectureCount,
+    ] = await Promise.all([
+      tx.semesterEnrollment.count({ where: { semesterCatalogId: id } }),
+      tx.promotionBatch.count({ where: { semesterCatalogId: id } }),
+      tx.admission.count({ where: { entrySemesterCatalogId: id } }),
+      tx.timetable.count({ where: { semesterCatalogId: id } }),
+      tx.lecture.count({ where: { semesterCatalogId: id } }),
+    ]);
+
+    return (
+      semesterEnrollmentCount > 0 ||
+      promotionBatchCount > 0 ||
+      admissionCount > 0 ||
+      timetableCount > 0 ||
+      lectureCount > 0
+    );
+  }
+
+  /**
    * Only the field `UpdateSemesterCatalogInput` exposes is ever
    * written: `number`. `curriculumVersionId` has no corresponding
    * branch here at all, so there is no code path through which a caller

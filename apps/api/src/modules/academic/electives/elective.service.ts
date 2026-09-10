@@ -241,6 +241,17 @@ export class ElectiveGroupService {
         throw ApiError.notFound('Elective group not found', ErrorCode.RECORD_NOT_FOUND);
       }
 
+      const historical = await semesterCatalogRepository.hasHistoricalUsage(
+        tx,
+        existing.semesterCatalogId,
+      );
+      if (historical) {
+        throw ApiError.conflict(
+          'This elective group cannot be modified because its semester already has academic history',
+          ErrorCode.SEMESTER_CATALOG_HISTORICAL,
+        );
+      }
+
       const effectiveMinSelect = input.minSelect ?? existing.minSelect;
       const effectiveMaxSelect = input.maxSelect ?? existing.maxSelect;
       if (effectiveMinSelect > effectiveMaxSelect) {
@@ -297,24 +308,22 @@ export class ElectiveGroupService {
     return toElectiveGroupDTO(updated);
   }
 
-  /**
-   * Hard delete — ElectiveGroup has no `deletedAt`/status field. No
-   * dependent-record pre-check is performed — see class-level
-   * "DEPENDENT-RECORD SAFETY: NOT IMPLEMENTED" note for why. Mirrors
-   * SubjectService.deleteSubject, not
-   * SemesterCatalogService.updateSemesterCatalog's `hasDependentRecords`
-   * pattern. `Subject.electiveGroupId` and
-   * `StudentElectiveSelection.electiveGroupId` are both foreign keys
-   * with no declared cascade, so Postgres rejects deletion when either
-   * still references this group (P2003 -> 400 via
-   * prisma-error.mapper.ts), rolling back the delete and the audit
-   * together.
-   */
   async deleteElectiveGroup(actorUserId: string, id: ElectiveGroupId): Promise<void> {
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await electiveGroupRepository.findByIdTx(tx, id);
       if (!existing) {
         throw ApiError.notFound('Elective group not found', ErrorCode.RECORD_NOT_FOUND);
+      }
+
+      const historical = await semesterCatalogRepository.hasHistoricalUsage(
+        tx,
+        existing.semesterCatalogId,
+      );
+      if (historical) {
+        throw ApiError.conflict(
+          'This elective group cannot be deleted because its semester already has academic history',
+          ErrorCode.SEMESTER_CATALOG_HISTORICAL,
+        );
       }
 
       await electiveGroupRepository.delete(tx, id);
@@ -335,10 +344,7 @@ export class ElectiveGroupService {
       });
     });
 
-    electiveGroupLogger.info('Elective group deleted', {
-      actorUserId,
-      electiveGroupId: id,
-    });
+    electiveGroupLogger.info('Elective group deleted', { actorUserId, electiveGroupId: id });
   }
 }
 

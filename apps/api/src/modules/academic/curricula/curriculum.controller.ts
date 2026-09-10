@@ -46,7 +46,6 @@ export const createCurriculumVersion = async (req: Request, res: Response): Prom
   const input: CreateCurriculumVersionInput = {
     programId: body.programId,
     label: body.label,
-    ...(body.status !== undefined && { status: body.status }),
   };
 
   const curriculumVersion = await curriculumVersionService.createCurriculumVersion(
@@ -55,7 +54,6 @@ export const createCurriculumVersion = async (req: Request, res: Response): Prom
   );
   ApiResponse.created(res, curriculumVersion, 'Curriculum version created');
 };
-
 export const getCurriculumVersionById = async (req: Request, res: Response): Promise<void> => {
   const params = req.valid?.params as CurriculumVersionIdParams;
   const curriculumVersion = await curriculumVersionService.getCurriculumVersionById(params.id);
@@ -93,19 +91,8 @@ export const updateCurriculumVersion = async (req: Request, res: Response): Prom
   const body = req.valid?.body as UpdateCurriculumVersionBody;
   const actorUserId = req.user!.id;
 
-  /**
-   * Explicit field-by-field reconstruction, not `{...body}` — same
-   * defensive convention department.controller.ts/program.controller.ts
-   * use for their own update bodies. `updateCurriculumVersionBodySchema`
-   * has no `programId` key at all, so there's nothing to strip out
-   * today, but whitelisting the two allowed fields here means a future,
-   * unrelated change to `UpdateCurriculumVersionBody` can never silently
-   * start forwarding a new field — including `programId` — into
-   * `UpdateCurriculumVersionInput` without a deliberate line added here.
-   */
   const input: UpdateCurriculumVersionInput = {
     ...(body.label !== undefined && { label: body.label }),
-    ...(body.status !== undefined && { status: body.status }),
   };
 
   const curriculumVersion = await curriculumVersionService.updateCurriculumVersion(
@@ -114,6 +101,34 @@ export const updateCurriculumVersion = async (req: Request, res: Response): Prom
     input,
   );
   ApiResponse.ok(res, curriculumVersion, 'Curriculum version updated');
+};
+
+/**
+ * Dedicated lifecycle commands, not a generic PATCH — no request body.
+ * Mirrors academic-year.controller.ts's activateAcademicYear exactly:
+ * the controller has no knowledge of transition legality, only
+ * curriculumVersionService does.
+ */
+export const activateCurriculumVersion = async (req: Request, res: Response): Promise<void> => {
+  const params = req.valid?.params as CurriculumVersionIdParams;
+  const actorUserId = req.user!.id;
+
+  const curriculumVersion = await curriculumVersionService.activateCurriculumVersion(
+    actorUserId,
+    params.id,
+  );
+  ApiResponse.ok(res, curriculumVersion, 'Curriculum version activated');
+};
+
+export const retireCurriculumVersion = async (req: Request, res: Response): Promise<void> => {
+  const params = req.valid?.params as CurriculumVersionIdParams;
+  const actorUserId = req.user!.id;
+
+  const curriculumVersion = await curriculumVersionService.retireCurriculumVersion(
+    actorUserId,
+    params.id,
+  );
+  ApiResponse.ok(res, curriculumVersion, 'Curriculum version retired');
 };
 
 /**

@@ -7,6 +7,7 @@ import type { ProgramId } from '../programs/program.types.js';
 
 import type {
   CreateCurriculumVersionInput,
+  CurriculumStatus,
   CurriculumVersionId,
   ListCurriculumVersionsFilters,
   ListCurriculumVersionsOptions,
@@ -84,7 +85,6 @@ export class CurriculumVersionRepository {
       data: {
         programId: input.programId,
         label: input.label,
-        ...(input.status !== undefined && { status: input.status }),
       },
     });
   }
@@ -187,8 +187,29 @@ export class CurriculumVersionRepository {
       where: { id },
       data: {
         ...(input.label !== undefined && { label: input.label }),
-        ...(input.status !== undefined && { status: input.status }),
       },
+    });
+  }
+
+  /**
+   * Narrowly-scoped write primitive for the lifecycle transition only —
+   * mirrors AcademicYearRepository.updateActiveState's identical
+   * reasoning: activation/retirement is a state-machine transition, not
+   * a field-level PATCH, so it is deliberately NOT folded into
+   * update()/UpdateCurriculumVersionInput. Only
+   * curriculum.service.ts's activateCurriculumVersion/
+   * retireCurriculumVersion may call this; transition legality
+   * (DRAFT->ACTIVE, ACTIVE->RETIRED only) is validated by the caller
+   * before this is ever reached — this method writes unconditionally.
+   */
+  async updateStatus(
+    tx: Db,
+    id: CurriculumVersionId,
+    status: CurriculumStatus,
+  ): Promise<CurriculumVersion> {
+    return tx.curriculumVersion.update({
+      where: { id },
+      data: { status },
     });
   }
 

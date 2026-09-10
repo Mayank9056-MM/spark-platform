@@ -8,12 +8,14 @@ import { subjectLogger } from '../../../lib/logger.js';
 import { prisma } from '../../../lib/prisma.js';
 import { recordAuditTx } from '../../audit/audit.service.js';
 import { AuditEntityType } from '../../audit/audit.types.js';
+import { electiveGroupRepository } from '../electives/elective.repository.js';
 import { semesterCatalogRepository } from '../SemesterCatalog/semester.repository.js';
 
 import { toSubjectDTO, toSubjectDTOList } from './subject.mapper.js';
 import { subjectRepository } from './subject.repository.js';
 import type {
   CreateSubjectInput,
+  ElectiveGroupId,
   ListSubjectsFilters,
   ListSubjectsOptions,
   ListSubjectsResult,
@@ -25,66 +27,46 @@ import type {
 /**
  * Business-logic layer for the Subject domain.
  *
- * Owns: SemesterCatalog existence checks, composite
- * `(semesterCatalogId, code)` uniqueness messaging, `semesterCatalogId`
- * immutability, transaction boundaries, audit coordination, and DTO
- * mapping. Does not own persistence (subject.repository.ts), HTTP
- * validation (subject.validation.ts), or authorization (route
- * middleware).
+ * Curriculum hardening additions over the prior version:
  *
- * ── ELECTIVEGROUP VALIDATION: NOT IMPLEMENTED ────────────────────────
- * No `academic/electives/` module exists in this repository — no
- * ElectiveGroup repository or service to check existence, activity, or
- * SemesterCatalog/CurriculumVersion context against. A supplied
- * `electiveGroupId` is persisted as given; the only protection today is
- * the database foreign key (P2003 on a nonexistent id, not a friendly
- * domain error). This is an open dependency, not an oversight — do not
- * work around it with a raw Prisma query here.
+ * 1. `Subject.electiveGroupId`, when set, must belong to the SAME
+ *    SemesterCatalog as the Subject itself — enforced in
+ *    `createSubject` (fast-path, outside the write transaction, mirroring
+ *    the existing SemesterCatalog-existence check) and in `updateSubject`
+ *    (inside the transaction, via `findByIdTx`, since it must observe
+ *    the same snapshot as the update it gates).
+ * 2. Any Subject mutation (update or delete) is rejected once the
+ *    parent SemesterCatalog has genuine academic-history references
+ *    (`semesterCatalogRepository.hasHistoricalUsage`) — SemesterEnrollment,
+ *    PromotionBatch, Admission, Timetable, or Lecture. Before that
+ *    history exists, ordinary correction remains fully possible.
  *
- * ── isElective / electiveGroupId: NOT ENFORCED ───────────────────────
- * subject.types.ts and subject.validation.ts both explicitly document
- * this pair as independent and unenforced anywhere in the domain
- * contract. No rule is invented here; a Subject may currently persist
- * `isElective: true` with `electiveGroupId: null`, or the reverse.
- *
- * ── AUDIT ──────────────────────────────────────────────────────────
- * CREATE/UPDATE/DELETE use `recordAuditTx` inside the same
- * `prisma.$transaction(...)` as the repository write, matching
- * DepartmentService/SemesterCatalogService. Reads are never audited.
- *
- * ── CONCURRENCY ────────────────────────────────────────────────────
- * `updateSubject`'s composite-uniqueness pre-check now runs inside the
- * same transaction as its `findByIdTx` read and `update` write (via
- * `findBySemesterCatalogAndCodeTx`), so all three observe one
- * transactionally-consistent snapshot. This closes the gap where the
- * pre-check could read from outside the transaction while the write
- * happened inside it — but it does NOT provide row-level locking
- * (`SELECT ... FOR UPDATE`) or Serializable isolation, neither of which
- * any repository in this codebase uses. Under Postgres's default READ
- * COMMITTED isolation, a second transaction inserting a colliding
- * `(semesterCatalogId, code)` row can still commit between this
- * transaction's pre-check and its `update()` call; the database's
- * `@@unique([semesterCatalogId, code])` constraint (P2002, mapped to
- * 409 by prisma-error.mapper.ts) is what actually closes that window,
- * not this pre-check. `Subject` has no `version` column, so a
- * concurrent update to unrelated fields is not detected as a lost
- * update either — this matches every sibling service's identical,
- * documented limitation.
+ * Everything else (composite uniqueness, `semesterCatalogId` immutability,
+ * isElective/electiveGroupId non-enforcement, audit/transaction shape) is
+ * unchanged from the prior implementation.
  */
 export class SubjectService {
   /**
-   * SemesterCatalog existence is checked directly via
-   * `semesterCatalogRepository.findById`, not through a service —
-   * matching SemesterCatalogService's identical direct check against
-   * CurriculumVersion. `existsBySemesterCatalogAndCode` is a fast-path
-   * pre-check only; the database's `@@unique([semesterCatalogId, code])`
-   * constraint is the final guarantee (P2002 -> 409). ElectiveGroup
-   * existence/context is not checked — see class-level note.
+   * SemesterCatalog existence check unchanged. New: when `electiveGroupId`
+   * is supplied, the referenced ElectiveGroup must exist AND belong to
+   * the same SemesterCatalog as this Subject — checked as a fast-path
+   * pre-check outside the transaction, mirroring the existing
+   * SemesterCatalog-existence check's own positioning. A mismatch is
+   * reported with ACADEMIC_HIERARCHY_MISMATCH, the same code
+   * promotion.service.ts already uses for an identical class of
+   * cross-hierarchy reference error.
    */
   async createSubject(actorUserId: string, input: CreateSubjectInput): Promise<SubjectDTO> {
     const semesterCatalog = await semesterCatalogRepository.findById(input.semesterCatalogId);
     if (!semesterCatalog) {
       throw ApiError.notFound('Semester catalog not found', ErrorCode.RECORD_NOT_FOUND);
+    }
+
+    if (input.electiveGroupId !== undefined) {
+      await this.assertElectiveGroupBelongsToSemesterCatalog(
+        input.electiveGroupId,
+        input.semesterCatalogId,
+      );
     }
 
     const codeTaken = await subjectRepository.existsBySemesterCatalogAndCode(
@@ -128,7 +110,6 @@ export class SubjectService {
     return toSubjectDTO(subject);
   }
 
-  /** Not audited — routine read. */
   async getSubjectById(id: SubjectId): Promise<SubjectDTO> {
     const subject = await subjectRepository.findById(id);
     if (!subject) {
@@ -137,31 +118,36 @@ export class SubjectService {
     return toSubjectDTO(subject);
   }
 
-  /**
-   * Not audited — routine read. Filtering/sorting/pagination all happen
-   * in `subjectRepository.findMany`; `SubjectDTO` is flat, so no
-   * per-row SemesterCatalog/ElectiveGroup lookups (no N+1).
-   */
   async listSubjects(
     filters: ListSubjectsFilters,
     options: ListSubjectsOptions,
   ): Promise<ListSubjectsResult> {
     const result = await subjectRepository.findMany(filters, options);
-    return {
-      subjects: toSubjectDTOList(result.subjects),
-      total: result.total,
-    };
+    return { subjects: toSubjectDTOList(result.subjects), total: result.total };
   }
 
   /**
    * Updates `code`, `name`, `electiveGroupId`, `isElective`.
-   * `semesterCatalogId` has no write path — `UpdateSubjectInput`
-   * excludes it and `subjectRepository.update` has no branch for it.
+   * `semesterCatalogId` remains structurally unreachable (unchanged).
    *
-   * When `code` changes, the composite-uniqueness pre-check runs via
-   * `findBySemesterCatalogAndCodeTx` inside this transaction — see the
-   * class-level "CONCURRENCY" note for exactly what guarantee this
-   * does and does not provide.
+   * New ordering, all inside one transaction against one
+   * transactionally-consistent read (`findByIdTx`):
+   *
+   *   1. load existing Subject
+   *   2. reject outright if the parent SemesterCatalog is historically
+   *      used — this blocks the ENTIRE update, not just an
+   *      electiveGroupId change, since any structural edit to a
+   *      historically-referenced semester's subject is unsafe.
+   *   3. compute the EFFECTIVE post-update electiveGroupId:
+   *        input.electiveGroupId === undefined -> existing.electiveGroupId (unchanged)
+   *        input.electiveGroupId === null      -> null (explicit clear)
+   *        input.electiveGroupId === <id>       -> that id (reassignment)
+   *      exactOptionalPropertyTypes means `undefined` and `null` are
+   *      distinct, real states here — never collapsed into each other.
+   *   4. if the effective value is non-null AND differs from the
+   *      existing value, verify it belongs to this Subject's own
+   *      (immutable) semesterCatalogId.
+   *   5. existing code-uniqueness pre-check, then the write, then audit.
    */
   async updateSubject(
     actorUserId: string,
@@ -172,6 +158,39 @@ export class SubjectService {
       const existing = await subjectRepository.findByIdTx(tx, id);
       if (!existing) {
         throw ApiError.notFound('Subject not found', ErrorCode.RECORD_NOT_FOUND);
+      }
+
+      const historical = await semesterCatalogRepository.hasHistoricalUsage(
+        tx,
+        existing.semesterCatalogId,
+      );
+      if (historical) {
+        throw ApiError.conflict(
+          'This subject cannot be modified because its semester already has academic history',
+          ErrorCode.SEMESTER_CATALOG_HISTORICAL,
+        );
+      }
+
+      const effectiveElectiveGroupId =
+        input.electiveGroupId === undefined ? existing.electiveGroupId : input.electiveGroupId;
+
+      if (
+        effectiveElectiveGroupId !== null &&
+        effectiveElectiveGroupId !== existing.electiveGroupId
+      ) {
+        const electiveGroup = await electiveGroupRepository.findByIdTx(
+          tx,
+          effectiveElectiveGroupId,
+        );
+        if (!electiveGroup) {
+          throw ApiError.notFound('Elective group not found', ErrorCode.RECORD_NOT_FOUND);
+        }
+        if (electiveGroup.semesterCatalogId !== existing.semesterCatalogId) {
+          throw ApiError.unprocessable(
+            'The elective group does not belong to this subject\u2019s semester catalog',
+            ErrorCode.ACADEMIC_HIERARCHY_MISMATCH,
+          );
+        }
       }
 
       if (input.code !== undefined && input.code !== existing.code) {
@@ -224,22 +243,27 @@ export class SubjectService {
   }
 
   /**
-   * Hard delete — Subject has no `deletedAt`/status field. No
-   * dependent-record pre-check is performed; this mirrors
-   * DepartmentService/ProgramService (not SemesterCatalogService's
-   * `hasDependentRecords`, which exists for its `number`-reinterpretation
-   * risk specifically — Subject's fields carry no equivalent risk).
-   * `SubjectComponent.subjectId`, `SubjectOffering.subjectId`, and
-   * `StudentElectiveSelection.subjectId` are required FKs with no
-   * declared cascade, so Postgres rejects deletion when any exist
-   * (P2003 -> 400 via prisma-error.mapper.ts), rolling back the delete
-   * and the audit together.
+   * Hard delete, same FK-Restrict reliance as before. New: rejected
+   * outright once the parent SemesterCatalog has academic history,
+   * checked inside the same transaction as the delete via
+   * `findByIdTx` + `hasHistoricalUsage`.
    */
   async deleteSubject(actorUserId: string, id: SubjectId): Promise<void> {
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await subjectRepository.findByIdTx(tx, id);
       if (!existing) {
         throw ApiError.notFound('Subject not found', ErrorCode.RECORD_NOT_FOUND);
+      }
+
+      const historical = await semesterCatalogRepository.hasHistoricalUsage(
+        tx,
+        existing.semesterCatalogId,
+      );
+      if (historical) {
+        throw ApiError.conflict(
+          'This subject cannot be deleted because its semester already has academic history',
+          ErrorCode.SEMESTER_CATALOG_HISTORICAL,
+        );
       }
 
       await subjectRepository.delete(tx, id);
@@ -261,10 +285,24 @@ export class SubjectService {
       });
     });
 
-    subjectLogger.info('Subject deleted', {
-      actorUserId,
-      subjectId: id,
-    });
+    subjectLogger.info('Subject deleted', { actorUserId, subjectId: id });
+  }
+
+  /** Shared by createSubject's outside-transaction fast-path check. */
+  private async assertElectiveGroupBelongsToSemesterCatalog(
+    electiveGroupId: ElectiveGroupId,
+    semesterCatalogId: string,
+  ): Promise<void> {
+    const electiveGroup = await electiveGroupRepository.findById(electiveGroupId);
+    if (!electiveGroup) {
+      throw ApiError.notFound('Elective group not found', ErrorCode.RECORD_NOT_FOUND);
+    }
+    if (electiveGroup.semesterCatalogId !== semesterCatalogId) {
+      throw ApiError.unprocessable(
+        'The elective group does not belong to this subject\u2019s semester catalog',
+        ErrorCode.ACADEMIC_HIERARCHY_MISMATCH,
+      );
+    }
   }
 }
 

@@ -57,6 +57,20 @@ curriculumRouter.post(
   curriculumController.createCurriculumVersion,
 );
 
+curriculumRouter.post(
+  '/:id/activate',
+  authorize('curriculumVersion', 'update'),
+  validate(curriculumVersionIdParamsSchema, 'params'),
+  curriculumController.activateCurriculumVersion,
+);
+
+curriculumRouter.post(
+  '/:id/retire',
+  authorize('curriculumVersion', 'update'),
+  validate(curriculumVersionIdParamsSchema, 'params'),
+  curriculumController.retireCurriculumVersion,
+);
+
 curriculumRouter.get(
   '/',
   authorize('curriculumVersion', 'read'),

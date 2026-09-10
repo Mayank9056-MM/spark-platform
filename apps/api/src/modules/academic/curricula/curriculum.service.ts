@@ -24,43 +24,21 @@ import type {
 import { AuditEntityType } from '@/modules/audit/audit.types.js';
 
 /**
- * Service-level logs cover successful state-changing administrative
- * operations (create/update/delete) via `curriculumLogger`, emitted only
- * after each operation's transaction has resolved successfully. Audit
- * records (`recordAuditTx`) remain the authoritative business history —
- * these logs are operational visibility only and never duplicate
- * `oldValue`/`newValue`. Routine reads are not logged.
+ * CurriculumVersion lifecycle (hardening pass):
+ *
+ *   DRAFT --activate--> ACTIVE --retire--> RETIRED
+ *
+ * One-way only. DRAFT->RETIRED, ACTIVE->DRAFT, RETIRED->(anything), and
+ * repeating the current state are all illegal. `activateCurriculumVersion`
+ * and `retireCurriculumVersion` are the ONLY methods that may change
+ * `status` — `updateCurriculumVersion` (generic PATCH) additionally
+ * refuses to run at all once the version has left DRAFT, since `label`
+ * (its only remaining mutable field) must not be freely editable on an
+ * ACTIVE or RETIRED version. `UpdateCurriculumVersionInput` has no
+ * `status` field, so there is no field-level path into this bypass
+ * either — this is enforced at both the type layer and here.
  */
 export class CurriculumVersionService {
-  /**
-   * Creates a CurriculumVersion.
-   *
-   * Program existence is checked first — a CurriculumVersion cannot be
-   * meaningfully created against a Program that doesn't exist, and this
-   * yields a clean domain-level 404 rather than relying on the
-   * database's foreign-key constraint (P2003) to surface as a generic
-   * "references a record that does not exist" 400. Mirrors
-   * ProgramService.createProgram's identical Department-existence check.
-   *
-   * `existsByProgramAndLabel` runs next — a fast-path check only, for a
-   * friendlier conflict message, NOT the concurrency guarantee. Two
-   * concurrent requests can both pass this check; the database's
-   * `@@unique([programId, label])` constraint is what actually prevents
-   * a duplicate, surfaced as a Prisma P2002 that the centralized Prisma
-   * error mapper turns into a 409 — if that happens, the transaction
-   * (create + audit) rolls back together, so no orphaned audit row is
-   * ever written for a create that didn't actually happen.
-   *
-   * `status`, if omitted, is left for the database's `@default(DRAFT)`
-   * to apply — `curriculumVersionRepository.create` already only writes
-   * `status` when it is explicitly supplied.
-   *
-   * `newValue` includes `id` alongside the rest of the persisted fields,
-   * matching DepartmentService.createDepartment/ProgramService
-   * .createProgram's identical choice to make the create audit snapshot
-   * self-contained, and is taken from the actual persisted row returned
-   * by the repository, never reconstructed from `input`.
-   */
   async createCurriculumVersion(
     actorUserId: string,
     input: CreateCurriculumVersionInput,
@@ -108,12 +86,6 @@ export class CurriculumVersionService {
     return toCurriculumVersionDTO(curriculumVersion);
   }
 
-  /**
-   * Returns a CurriculumVersion by ID. Not audited — routine read. Never
-   * queries Program — `CurriculumVersionDTO.programId` is already a
-   * plain id, and a plain lookup has no reason to force-load the owning
-   * Program.
-   */
   async getCurriculumVersionById(id: CurriculumVersionId): Promise<CurriculumVersionDTO> {
     const curriculumVersion = await curriculumVersionRepository.findById(id);
     if (!curriculumVersion) {
@@ -122,14 +94,6 @@ export class CurriculumVersionService {
     return toCurriculumVersionDTO(curriculumVersion);
   }
 
-  /**
-   * Lists curriculum versions using the filters/options supplied by the
-   * caller. Not audited — routine read. Pagination, sorting, filtering
-   * (search/programId/status) are all performed by
-   * `curriculumVersionRepository.findMany` — this method does not
-   * implement any of them itself, and never queries Program per result
-   * row (no N+1).
-   */
   async listCurriculumVersions(
     filters: ListCurriculumVersionsFilters,
     options: ListCurriculumVersionsOptions,
@@ -142,25 +106,12 @@ export class CurriculumVersionService {
   }
 
   /**
-   * Updates the mutable `label` and `status` fields. `programId` cannot
-   * be changed through this method — see the class-level doc comment.
-   *
-   * The existence check, the `oldValue` snapshot, the `(programId,
-   * label)` conflict check, and the update all happen inside one
-   * transaction via `findByIdTx` / `findByProgramAndLabelTx` — see the
-   * class-level "WHY UPDATE/DELETE RE-READ INSIDE THE TRANSACTION" and
-   * "(programId, label) UNIQUENESS ON UPDATE" notes. No status
-   * transition legality check is performed — see the class-level
-   * "LIFECYCLE (STATUS)" note; no such policy is established anywhere
-   * in this repository.
-   *
-   * `oldValue`/`newValue` both include `programId` even though it cannot
-   * change through this method — matching ProgramService.updateProgram's
-   * identical choice to include its own immutable `departmentId` in both
-   * snapshots, for audit-record context/completeness rather than to
-   * imply mutability. Both are taken from actual persisted
-   * CurriculumVersion state (the pre-update row and the post-update
-   * result respectively) — `input` is never echoed directly.
+   * Updates `label` only (see UpdateCurriculumVersionInput's own note).
+   * Refuses to run at all once the version has left DRAFT — this is
+   * the "generic update cannot bypass the lifecycle" guard the hardening
+   * task requires. Existence check, status check, `oldValue` snapshot,
+   * and the update all read the SAME transactionally-consistent row via
+   * `findByIdTx`, matching every sibling service's identical reasoning.
    */
   async updateCurriculumVersion(
     actorUserId: string,
@@ -171,6 +122,13 @@ export class CurriculumVersionService {
       const existing = await curriculumVersionRepository.findByIdTx(tx, id);
       if (!existing) {
         throw ApiError.notFound('Curriculum version not found', ErrorCode.RECORD_NOT_FOUND);
+      }
+
+      if (existing.status !== 'DRAFT') {
+        throw ApiError.conflict(
+          'Only a draft curriculum version can be edited',
+          ErrorCode.CURRICULUM_VERSION_INVALID_TRANSITION,
+        );
       }
 
       if (input.label !== undefined && input.label !== existing.label) {
@@ -194,16 +152,8 @@ export class CurriculumVersionService {
         action: 'UPDATE',
         entityType: AuditEntityType.CURRICULUM_VERSION,
         entityId: existing.id,
-        oldValue: {
-          programId: existing.programId,
-          label: existing.label,
-          status: existing.status,
-        },
-        newValue: {
-          programId: result.programId,
-          label: result.label,
-          status: result.status,
-        },
+        oldValue: { programId: existing.programId, label: existing.label, status: existing.status },
+        newValue: { programId: result.programId, label: result.label, status: result.status },
       });
 
       return result;
@@ -217,25 +167,6 @@ export class CurriculumVersionService {
     return toCurriculumVersionDTO(updated);
   }
 
-  /**
-   * Deletes a CurriculumVersion.
-   *
-   * Existence check, `oldValue` snapshot, and the delete all happen
-   * inside one transaction via `findByIdTx` — same reasoning as
-   * `updateCurriculumVersion`. If the CurriculumVersion still has
-   * SemesterCatalog, StudentEnrollment, or Admission rows referencing it
-   * (all required foreign keys with no cascade declared in
-   * schema.prisma), Postgres rejects the deletion (P2003, mapped to 400
-   * by prisma-error.mapper.ts) — that error propagates out of the
-   * transaction callback, which rolls the whole transaction back: the
-   * delete does not happen, no audit row is written, and the
-   * CurriculumVersion remains intact. This service does not
-   * cascade-delete any of that academic history, does not soft-delete,
-   * and does not invent an archival/status-based deletion rule — nothing
-   * in this repository establishes one, and none is assumed (see the
-   * class-level "LIFECYCLE (STATUS)" note — the same "no evidence, no
-   * rule" stance applies to deletion eligibility).
-   */
   async deleteCurriculumVersion(actorUserId: string, id: CurriculumVersionId): Promise<void> {
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await curriculumVersionRepository.findByIdTx(tx, id);
@@ -260,10 +191,90 @@ export class CurriculumVersionService {
       });
     });
 
-    curriculumLogger.info('Curriculum version deleted', {
-      actorUserId,
-      curriculumVersionId: id,
+    curriculumLogger.info('Curriculum version deleted', { actorUserId, curriculumVersionId: id });
+  }
+
+  /**
+   * DRAFT -> ACTIVE. Rejects any other current status. Mutation + audit
+   * commit atomically via `updateStatus` + `recordAuditTx` in one
+   * transaction, matching AcademicYearService.activateAcademicYear's
+   * identical shape for its own single-row state transition.
+   */
+  async activateCurriculumVersion(
+    actorUserId: string,
+    id: CurriculumVersionId,
+  ): Promise<CurriculumVersionDTO> {
+    const activated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const existing = await curriculumVersionRepository.findByIdTx(tx, id);
+      if (!existing) {
+        throw ApiError.notFound('Curriculum version not found', ErrorCode.RECORD_NOT_FOUND);
+      }
+      if (existing.status !== 'DRAFT') {
+        throw ApiError.conflict(
+          'Only a draft curriculum version can be activated',
+          ErrorCode.CURRICULUM_VERSION_INVALID_TRANSITION,
+        );
+      }
+
+      const result = await curriculumVersionRepository.updateStatus(tx, id, 'ACTIVE');
+
+      await recordAuditTx(tx, {
+        actorUserId,
+        action: 'UPDATE',
+        entityType: AuditEntityType.CURRICULUM_VERSION,
+        entityId: existing.id,
+        oldValue: { status: 'DRAFT' },
+        newValue: { status: result.status },
+      });
+
+      return result;
     });
+
+    curriculumLogger.info('Curriculum version activated', {
+      actorUserId,
+      curriculumVersionId: activated.id,
+    });
+
+    return toCurriculumVersionDTO(activated);
+  }
+
+  /** ACTIVE -> RETIRED. Rejects any other current status. Same shape as activateCurriculumVersion. */
+  async retireCurriculumVersion(
+    actorUserId: string,
+    id: CurriculumVersionId,
+  ): Promise<CurriculumVersionDTO> {
+    const retired = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const existing = await curriculumVersionRepository.findByIdTx(tx, id);
+      if (!existing) {
+        throw ApiError.notFound('Curriculum version not found', ErrorCode.RECORD_NOT_FOUND);
+      }
+      if (existing.status !== 'ACTIVE') {
+        throw ApiError.conflict(
+          'Only an active curriculum version can be retired',
+          ErrorCode.CURRICULUM_VERSION_INVALID_TRANSITION,
+        );
+      }
+
+      const result = await curriculumVersionRepository.updateStatus(tx, id, 'RETIRED');
+
+      await recordAuditTx(tx, {
+        actorUserId,
+        action: 'UPDATE',
+        entityType: AuditEntityType.CURRICULUM_VERSION,
+        entityId: existing.id,
+        oldValue: { status: 'ACTIVE' },
+        newValue: { status: result.status },
+      });
+
+      return result;
+    });
+
+    curriculumLogger.info('Curriculum version retired', {
+      actorUserId,
+      curriculumVersionId: retired.id,
+    });
+
+    return toCurriculumVersionDTO(retired);
   }
 }
 
