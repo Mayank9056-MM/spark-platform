@@ -33,3 +33,4 @@ export const admissionLogger = createChildLogger({ component: 'admission' });
 export const studentEnrollmentLogger = createChildLogger({ component: 'student-enrollment' });
 export const semesterEnrollmentLogger = createChildLogger({ component: 'semester-enrollment' });
 export const promotionLogger = createChildLogger({ component: 'promotion' });
+export const subjectOfferingLogger = createChildLogger({ component: 'subject-offering' });
