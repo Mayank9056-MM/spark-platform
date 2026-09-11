@@ -28,6 +28,7 @@ import { promotionRouter } from './modules/promotion/promotion.routes.js';
 import { permissionRouter, roleAssignmentRouter, roleRouter } from './modules/rbac/index.js';
 import { semesterEnrollmentRouter } from './modules/semester-enrollments/semesterEnrollment.routes.js';
 import { studentEnrollmentRouter } from './modules/student-enrollments/studentEnrollment.routes.js';
+import { subjectOfferingRouter } from './modules/subject-offerings/subjectOffering.routes.js';
 import { userRouter } from './modules/user/user.routes.js';
 
 /**
@@ -99,6 +100,7 @@ export function createServer(): Express {
   app.use('/api/v1/student-enrollments', studentEnrollmentRouter);
   app.use('/api/v1/semester-enrollments', semesterEnrollmentRouter);
   app.use('/api/v1/promotions', promotionRouter);
+  app.use('/api/v1/subject-offerings', subjectOfferingRouter);
 
   // Route-not-found must go through the SAME error pipeline as every other
   // error (Phase 11) — a bare res.json() here previously produced a
