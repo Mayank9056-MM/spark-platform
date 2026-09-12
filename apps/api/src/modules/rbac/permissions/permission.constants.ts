@@ -355,6 +355,36 @@ export const PERMISSIONS = Object.freeze({
     'Cancel Admission',
     'Allows cancelling a confirmed admission. Cancellation is permanent and cannot be reversed.',
   ),
+  PROMOTION_CREATE: definePermission(
+    'promotion',
+    'create',
+    'Create Promotion Batch/Decision',
+    'Allows opening a promotion batch and recording promotion decisions within it.',
+  ),
+  PROMOTION_READ: definePermission(
+    'promotion',
+    'read',
+    'Read Promotion',
+    'Allows viewing promotion batches and their recorded decisions.',
+  ),
+  PROMOTION_FINALIZE: definePermission(
+    'promotion',
+    'finalize',
+    'Finalize Promotion Batch',
+    'Allows finalizing a promotion batch, applying its decisions as semester/student enrollment transitions. This action is irreversible.',
+  ),
+  FACULTY_ASSIGNMENT_CREATE: definePermission(
+    'facultyAssignment',
+    'create',
+    'Create Faculty Assignment',
+    "Allows assigning a faculty member to teach a subject offering's component.",
+  ),
+  FACULTY_ASSIGNMENT_READ: definePermission(
+    'facultyAssignment',
+    'read',
+    'Read Faculty Assignment',
+    'Allows viewing faculty assignment records.',
+  ),
 } as const satisfies Record<string, PermissionCatalogEntry>);
 
 /**

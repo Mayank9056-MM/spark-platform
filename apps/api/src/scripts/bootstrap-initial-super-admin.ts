@@ -80,13 +80,19 @@ import { prisma } from '@/lib/prisma.js';
 const SUPER_ADMIN_ROLE_KEY = 'super_admin';
 
 /**
- * NOTE: the password minimum here is a conservative floor, not a verified
- * match to the application's actual password policy (auth.validation.ts
- * was not inspected as part of this change).
+ * Reuses auth.validation.ts's own passwordSchema — the single most
+ * privileged account in the system must never be held to a weaker bar
+ * than an ordinary user activating their account via the normal flow.
  */
 const credentialsSchema = z.object({
   INITIAL_SUPER_ADMIN_EMAIL: z.email(),
-  INITIAL_SUPER_ADMIN_PASSWORD: z.string().min(12),
+  INITIAL_SUPER_ADMIN_PASSWORD: z
+    .string()
+    .min(10, 'Password must be at least 10 characters')
+    .max(128, 'Password must be at most 128 characters')
+    .regex(/[a-z]/, 'Password must contain a lowercase letter')
+    .regex(/[A-Z]/, 'Password must contain an uppercase letter')
+    .regex(/[0-9]/, 'Password must contain a digit'),
   INITIAL_SUPER_ADMIN_FIRST_NAME: z.string().min(1),
   INITIAL_SUPER_ADMIN_LAST_NAME: z.string().min(1),
 });

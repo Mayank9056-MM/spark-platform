@@ -60,14 +60,40 @@ export class PermissionService {
   /**
    * Creates a permission from a resource/action pair.
    *
-   * The permission catalog describes currently implemented capabilities,
-   * but it is not treated as an exhaustive runtime allowlist. Future
-   * modules may introduce additional valid AuthorizationResource /
-   * AuthorizationAction combinations.
+   * Now audited (previously it wasn't — a real gap flagged in review:
+   * every other RBAC mutation records who/when/old/new, this one
+   * silently didn't). Wrapped in prisma.$transaction with
+   * recordAuditTx so a failed audit write rolls back the creation too,
+   * matching RoleService.createRole's exact shape.
    */
-  async createPermission(input: CreatePermissionInput): Promise<PermissionDTO> {
-    const created = await permissionRepository.create(prisma, input);
-    permissionLogger.info('Permission created', { permissionId: created.id, key: created.key });
+  async createPermission(
+    actorUserId: string,
+    input: CreatePermissionInput,
+  ): Promise<PermissionDTO> {
+    const created = await prisma.$transaction(async (tx) => {
+      const permission = await permissionRepository.create(tx, input);
+
+      await recordAuditTx(tx, {
+        actorUserId,
+        action: 'CREATE',
+        entityType: AuditEntityType.PERMISSION,
+        entityId: permission.id,
+        newValue: {
+          key: permission.key,
+          displayName: permission.displayName,
+          description: permission.description,
+        },
+      });
+
+      return permission;
+    });
+
+    permissionLogger.info('Permission created', {
+      permissionId: created.id,
+      key: created.key,
+      actorUserId,
+    });
+
     return toPermissionDTO(created);
   }
 
@@ -125,18 +151,44 @@ export class PermissionService {
   }
 
   /**
-   * Updates mutable permission metadata.
-   *
-   * Permission identity is immutable. The key/resource/action identity
-   * cannot be changed through this service.
+   * Updates mutable permission metadata. Now audited — same rationale
+   * as createPermission above. Existence read stays outside the
+   * transaction, matching this file's own established shape
+   * (assignToRole/revokeFromRole already read pre-transaction), not the
+   * newer findByIdTx pattern Department/Program use — kept consistent
+   * with this file's own prior convention rather than mixing two
+   * styles in one module.
    */
-  async updatePermission(id: PermissionId, input: UpdatePermissionInput): Promise<PermissionDTO> {
+  async updatePermission(
+    actorUserId: string,
+    id: PermissionId,
+    input: UpdatePermissionInput,
+  ): Promise<PermissionDTO> {
     const existing = await permissionRepository.findById(id);
     if (!existing) {
       throw ApiError.notFound('Permission not found', ErrorCode.RECORD_NOT_FOUND);
     }
-    const updated = await permissionRepository.update(prisma, id, input);
-    permissionLogger.info('Permission updated', { permissionId: id });
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const result = await permissionRepository.update(tx, id, input);
+
+      await recordAuditTx(tx, {
+        actorUserId,
+        action: 'UPDATE',
+        entityType: AuditEntityType.PERMISSION,
+        entityId: existing.id,
+        oldValue: { displayName: existing.displayName, description: existing.description },
+        newValue: {
+          ...(input.displayName !== undefined && { displayName: input.displayName }),
+          ...(input.description !== undefined && { description: input.description }),
+        },
+      });
+
+      return result;
+    });
+
+    permissionLogger.info('Permission updated', { permissionId: id, actorUserId });
+
     return toPermissionDTO(updated);
   }
 

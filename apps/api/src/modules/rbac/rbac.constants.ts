@@ -1,50 +1,72 @@
 // apps/api/src/modules/rbac/rbac.constants.ts
 
+import type {
+  AuthorizationAction,
+  AuthorizationResource,
+} from './authorization/authorization.types.js';
 import type { ScopeType } from './scopes/scope.types.js';
 
 /**
  * Module-wide constants for the RBAC domain.
+ * ...(unchanged intro)...
  *
- * This file defines ONLY stable, reusable RBAC configuration values. It is
- * not a service, repository, validator, authorization engine, or
- * middleware, and must never become one — it performs no database access,
- * no authorization decisions, no validation, and no logging.
+ * Deliberately NOT included here: a permission-key separator constant
+ * and a module name/identifier constant — neither has a real consumer,
+ * and adding them now would be speculative.
  *
- * Canonical sources this file deliberately does NOT duplicate — if a value
- * already lives in one of these, it stays there, not here:
- *
- * - AuthorizationAction / AuthorizationResource / PermissionKey /
- *   ScopeContext  — authorization/authorization.types.ts
- * - ScopeType (= ScopeContext['type'])          — scopes/scope.types.ts
- * - the permission catalog (PERMISSIONS, PERMISSION_CATALOG,
- *   PERMISSIONS_BY_KEY, ...)                    — permissions/permission.constants.ts
- *
- * Deliberately NOT included here (see the accompanying report for why):
- * a permission-key separator constant, a module name/identifier constant,
- * and runtime arrays enumerating every AuthorizationAction/
- * AuthorizationResource. None currently has a real consumer, and adding
- * them now would be speculative.
+ * AUTHORIZATION_ACTIONS / AUTHORIZATION_RESOURCES below now ARE
+ * included, because they now have a real consumer.
+ * permission.validation.ts previously hand-declared its own local,
+ * shorter copy of both arrays, and that copy had drifted out of sync
+ * with AuthorizationResource: 8 resources already live in
+ * PERMISSION_CATALOG (department, program, curriculumVersion,
+ * semesterCatalog, subject, electiveGroup, academicYear, admission)
+ * were silently missing from it, causing valid
+ * POST/GET /rbac/permissions requests for those resources to be
+ * rejected with 400. These two arrays are the single source of truth
+ * going forward.
  */
 
 /**
- * The single-college scope hierarchy, ordered from broadest to narrowest.
- *
- * This is the definitive statement of which scope types the application
- * supports and their containment order: COLLEGE contains every
- * DEPARTMENT, and each DEPARTMENT contains its DIVISIONs. There is no
- * ORGANIZATION scope above COLLEGE — COLLEGE is the top of the hierarchy.
- *
- * This is data, not logic. It does NOT decide whether one scope covers
- * another — that is exclusively scope-resolver.ts's scopeCovers(). Nothing
- * in this file performs scope validation, coverage checks, or
- * authorization of any kind.
- *
- * Each element is typed against `ScopeType` (scope.types.ts), so a
- * renamed or misspelled scope type fails to compile. This is NOT
- * automatically kept in sync in the other direction: if a new scope type
- * is ever added to `ScopeContext` in authorization.types.ts, this array
- * must be updated by hand, in the correct hierarchy position — anything
- * that relies on this list for a complete scope enumeration would
- * otherwise silently omit the new type.
+ * Data, not logic — matches SCOPE_HIERARCHY's own convention below.
+ * NOT automatically kept in sync with AuthorizationAction/
+ * AuthorizationResource: adding a new action/resource to those types
+ * requires updating the corresponding array here by hand.
+ * `satisfies` checks every listed element is a valid union member; it
+ * does not (and, without generic type machinery this codebase
+ * otherwise avoids, cannot) enforce that every union member is listed.
  */
+export const AUTHORIZATION_ACTIONS = [
+  'create',
+  'read',
+  'update',
+  'delete',
+  'archive',
+  'restore',
+  'activate',
+  'cancel',
+  'finalize',
+] as const satisfies readonly AuthorizationAction[];
+
+export const AUTHORIZATION_RESOURCES = [
+  'user',
+  'role',
+  'permission',
+  'roleAssignment',
+  'department',
+  'program',
+  'curriculumVersion',
+  'semesterCatalog',
+  'subject',
+  'electiveGroup',
+  'academicYear',
+  'admission',
+  'promotion',
+  'student',
+  'faculty',
+  'attendance',
+  'assignment',
+  'notice',
+] as const satisfies readonly AuthorizationResource[];
+
 export const SCOPE_HIERARCHY: readonly ScopeType[] = Object.freeze(['COLLEGE', 'DEPARTMENT']);

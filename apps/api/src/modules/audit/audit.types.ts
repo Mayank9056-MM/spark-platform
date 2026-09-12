@@ -10,6 +10,7 @@ export enum AuditEntityType {
   SESSION = 'Session',
   ROLE = 'Role',
   ROLE_ASSIGNMENT = 'RoleAssignment',
+  PERMISSION = 'Permission',
   DEPARTMENT = 'Department',
   // Added for the Program domain (Department -> Program in the academic
   // hierarchy). Program's audit policy mirrors Department's exactly:

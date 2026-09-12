@@ -15,7 +15,8 @@ import type {
 
 export const createPermission = async (req: Request, res: Response): Promise<void> => {
   const body = req.valid?.body as CreatePermissionBody;
-  const permission = await permissionService.createPermission(body);
+  const actorUserId = req.user!.id;
+  const permission = await permissionService.createPermission(actorUserId, body);
   ApiResponse.created(res, permission, 'Permission created');
 };
 
@@ -46,12 +47,13 @@ export const listPermissions = async (req: Request, res: Response): Promise<void
 export const updatePermission = async (req: Request, res: Response): Promise<void> => {
   const params = req.valid?.params as PermissionIdParams;
   const body = req.valid?.body as UpdatePermissionBody;
+  const actorUserId = req.user!.id;
 
   const input: UpdatePermissionInput = {
     ...(body.displayName !== undefined && { displayName: body.displayName }),
     ...(body.description !== undefined && { description: body.description }),
   };
 
-  const permission = await permissionService.updatePermission(params.id, input);
+  const permission = await permissionService.updatePermission(actorUserId, params.id, input);
   ApiResponse.ok(res, permission, 'Permission updated');
 };

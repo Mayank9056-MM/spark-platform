@@ -2,10 +2,6 @@ import { z } from 'zod';
 
 import { normalizeEmail } from '../../lib/email.js';
 
-/**
- * Shared password policy — used by both activation and password-reset,
- * so the rule lives in exactly one place.
- */
 const passwordSchema = z
   .string()
   .min(10, 'Password must be at least 10 characters')

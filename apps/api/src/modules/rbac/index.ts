@@ -41,7 +41,7 @@ export type {
   ScopeContext,
 } from './authorization/authorization.types.js';
 
-export type { AuthorizeOptions } from './authorization/authorization.middleware.ts';
+export type { AuthorizeOptions } from './authorization/authorization.middleware.js';
 
 export type { RoleId } from './roles/role.types.js';
 
