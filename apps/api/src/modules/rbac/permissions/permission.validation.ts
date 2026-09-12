@@ -2,27 +2,7 @@
 
 import { z } from 'zod';
 
-/**
- * HTTP-boundary validation for the Permission module — structural only.
- * Mirrors AuthorizationResource/AuthorizationAction (authorization.types.ts)
- * as runtime literal arrays, the same duplication pattern
- * role-assignment.validation.ts already uses for SCOPE_TYPES: a type-only
- * union can't be turned into a z.enum() without a parallel runtime array,
- * and no other file in this codebase exports one.
- */
-const AUTHORIZATION_RESOURCES = [
-  'user',
-  'role',
-  'permission',
-  'roleAssignment',
-  'student',
-  'faculty',
-  'attendance',
-  'assignment',
-  'notice',
-] as const;
-
-const AUTHORIZATION_ACTIONS = ['create', 'read', 'update', 'delete', 'archive', 'restore'] as const;
+import { AUTHORIZATION_ACTIONS, AUTHORIZATION_RESOURCES } from '../rbac.constants.js';
 
 const PERMISSION_DISPLAY_NAME_MAX_LENGTH = 150;
 const PERMISSION_DESCRIPTION_MAX_LENGTH = 500;
