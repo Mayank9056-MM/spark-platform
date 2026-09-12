@@ -4,7 +4,7 @@ import { Router } from 'express';
 
 import { requireAuth } from '../../middlewares/auth.middleware.js';
 import { validate } from '../../middlewares/validate.middleware.js';
-import { authorize } from '../rbac/authorization/authorization.middleware.js';
+import { authorize } from '../rbac/index.js';
 
 import * as promotionController from './promotion.controller.js';
 import {
@@ -79,28 +79,28 @@ promotionRouter.use(requireAuth);
 
 promotionRouter.post(
   '/batches',
-  authorize('student', 'create'),
+  authorize('promotion', 'create'),
   validate(createPromotionBatchBodySchema),
   promotionController.createPromotionBatch,
 );
 
 promotionRouter.get(
   '/batches',
-  authorize('student', 'read'),
+  authorize('promotion', 'read'),
   validate(listPromotionBatchesQuerySchema, 'query'),
   promotionController.listPromotionBatches,
 );
 
 promotionRouter.get(
   '/batches/:id',
-  authorize('student', 'read'),
+  authorize('promotion', 'read'),
   validate(promotionBatchIdParamsSchema, 'params'),
   promotionController.getPromotionBatchById,
 );
 
 promotionRouter.post(
   '/batches/:id/finalize',
-  authorize('student', 'update'),
+  authorize('promotion', 'finalize'),
   validate(promotionBatchIdParamsSchema, 'params'),
   promotionController.finalizePromotionBatch,
 );
@@ -109,7 +109,7 @@ promotionRouter.post(
 
 promotionRouter.post(
   '/batches/:batchId/decisions',
-  authorize('student', 'create'),
+  authorize('promotion', 'create'),
   validate(promotionBatchDecisionsParamsSchema, 'params'),
   validate(createPromotionDecisionBodySchema),
   promotionController.createPromotionDecision,
@@ -117,7 +117,7 @@ promotionRouter.post(
 
 promotionRouter.get(
   '/batches/:batchId/decisions',
-  authorize('student', 'read'),
+  authorize('promotion', 'read'),
   validate(promotionBatchDecisionsParamsSchema, 'params'),
   validate(listPromotionDecisionsQuerySchema, 'query'),
   promotionController.listPromotionDecisionsForBatch,
@@ -125,7 +125,7 @@ promotionRouter.get(
 
 promotionRouter.get(
   '/decisions/:id',
-  authorize('student', 'read'),
+  authorize('promotion', 'read'),
   validate(promotionDecisionIdParamsSchema, 'params'),
   promotionController.getPromotionDecisionById,
 );
