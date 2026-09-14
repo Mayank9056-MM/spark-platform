@@ -28,6 +28,7 @@ export enum AuditEntityType {
   PROMOTION_BATCH = 'PromotionBatch',
   PROMOTION_DECISION = 'PromotionDecision',
   SUBJECT_OFFERING = 'SubjectOffering',
+  TIMETABLE = 'Timetable',
 }
 
 export interface RecordAuditInput {
