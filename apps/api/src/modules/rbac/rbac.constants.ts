@@ -64,6 +64,8 @@ export const AUTHORIZATION_RESOURCES = [
   'promotion',
   'student',
   'faculty',
+  'facultyAssignment',
+  'timetable',
   'attendance',
   'assignment',
   'notice',

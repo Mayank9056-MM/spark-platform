@@ -547,6 +547,33 @@ enum SubjectComponentType {
   PROJECT
 }
 
+// Subject is CURRICULUM/SEMESTER-SPECIFIC, not a global/canonical academic
+// subject. semesterCatalogId is a required FK into exactly one
+// SemesterCatalog, which itself belongs to exactly one CurriculumVersion,
+// which belongs to exactly one Program (Department -> Program ->
+// CurriculumVersion -> SemesterCatalog -> Subject). Nothing in this schema
+// lets two Programs share one Subject row.
+//
+// Consequence: if two departments both teach "Operating Systems" in the
+// same academic year (e.g. CSE and IT), that is represented as TWO
+// separate Subject rows — one filed under CSE's semester catalog, one
+// under IT's — even though they share a code/name/description. This is
+// intentional, not a gap: it's what makes SubjectOffering's
+// @@unique([subjectId, academicYearId]) already sufficient to keep CSE's
+// and IT's deliveries independent (different subjectId => no collision)
+// while still rejecting a genuine duplicate offering for the SAME
+// population in the SAME year (same subjectId + same academicYearId =>
+// blocked). See the SubjectOffering comment below for the full reasoning.
+//
+// If a future requirement needs true canonical subject sharing (one
+// "Operating Systems" identity referenced by multiple departments, so its
+// name/credits are entered once), that needs a real new concept — e.g. a
+// course-catalog entity that per-department Subject rows reference — not
+// a change to SubjectOffering. Do not fake it by adding an
+// academicContextId to SubjectOffering: subjectId already fully implies
+// that context via semesterCatalogId above, and a second field carrying
+// the same fact risks disagreeing with it (e.g. departmentId = CSE next
+// to a subject whose semesterCatalog is actually IT's).
 model Subject {
   id                String  @id @default(uuid())
   semesterCatalogId String
@@ -629,6 +656,19 @@ model SubjectComponent {
 // subject+academic-year regardless of how many components/faculty. No
 // divisionId: there is exactly one cohort per program/semester/year, so
 // subjectId + academicYearId is already a sufficient offering identity.
+//
+// MULTI-DEPARTMENT CASE (e.g. CSE and IT both offering "Operating
+// Systems" in 2026-27): already supported with no change here. Subject
+// is curriculum/semester-scoped (see Subject's own comment above), so
+// CSE's OS and IT's OS are already two different Subject rows with two
+// different ids. @@unique([subjectId, academicYearId]) therefore never
+// collides between them (different subjectId), while still rejecting a
+// true duplicate — the same Subject offered twice in the same
+// AcademicYear, which this college does not support (no parallel
+// sections). Do not add a departmentId/curriculumVersionId/
+// academicContextId column here to "fix" cross-department offerings —
+// there is nothing to fix, and subjectId already carries that
+// information via Subject.semesterCatalogId.
 model SubjectOffering {
   id             String @id @default(uuid())
   subjectId      String
