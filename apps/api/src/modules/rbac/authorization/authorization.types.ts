@@ -53,6 +53,7 @@ export type AuthorizationResource =
   | 'faculty'
   | 'facultyAssignment'
   | 'timetable'
+  | 'lecture'
   | 'attendance'
   | 'assignment'
   | 'notice';

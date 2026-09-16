@@ -36,3 +36,4 @@ export const promotionLogger = createChildLogger({ component: 'promotion' });
 export const subjectOfferingLogger = createChildLogger({ component: 'subject-offering' });
 export const facultyAssignmentLogger = createChildLogger({ component: 'faculty-assignment' });
 export const timetableLogger = createChildLogger({ component: 'timetable' });
+export const lectureLogger = createChildLogger({ component: 'lecture' });

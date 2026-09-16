@@ -397,6 +397,18 @@ export const PERMISSIONS = Object.freeze({
     'Read Timetable',
     'Allows viewing timetable entries.',
   ),
+  LECTURE_CREATE: definePermission(
+    'lecture',
+    'create',
+    'Create Lecture',
+    'Allows creating a dated lecture occurrence from an existing timetable entry.',
+  ),
+  LECTURE_READ: definePermission(
+    'lecture',
+    'read',
+    'Read Lecture',
+    'Allows viewing lecture occurrences.',
+  ),
 } as const satisfies Record<string, PermissionCatalogEntry>);
 
 /**

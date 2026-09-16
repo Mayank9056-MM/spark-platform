@@ -29,6 +29,7 @@ export enum AuditEntityType {
   PROMOTION_DECISION = 'PromotionDecision',
   SUBJECT_OFFERING = 'SubjectOffering',
   TIMETABLE = 'Timetable',
+  LECTURE = 'Lecture',
 }
 
 export interface RecordAuditInput {
