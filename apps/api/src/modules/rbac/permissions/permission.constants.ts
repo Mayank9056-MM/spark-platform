@@ -409,6 +409,30 @@ export const PERMISSIONS = Object.freeze({
     'Read Lecture',
     'Allows viewing lecture occurrences.',
   ),
+  ATTENDANCE_CREATE: definePermission(
+    'attendance',
+    'create',
+    'Create Attendance',
+    'Allows opening an attendance session for a lecture and bulk-marking student attendance records against it.',
+  ),
+  ATTENDANCE_READ: definePermission(
+    'attendance',
+    'read',
+    'Read Attendance',
+    'Allows viewing attendance sessions and attendance records.',
+  ),
+  ATTENDANCE_UPDATE: definePermission(
+    'attendance',
+    'update',
+    'Correct Attendance Record',
+    'Allows correcting an already-marked attendance record.',
+  ),
+  ATTENDANCE_FINALIZE: definePermission(
+    'attendance',
+    'finalize',
+    'Lock Attendance Session',
+    'Allows locking an attendance session so it no longer accepts new attendance records. This action cannot be reversed.',
+  ),
 } as const satisfies Record<string, PermissionCatalogEntry>);
 
 /**

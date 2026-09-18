@@ -23,6 +23,7 @@ import {
 } from './modules/academic/index.js';
 import { academicYearRouter } from './modules/academic-years/academic-year.routes.js';
 import { admissionRouter } from './modules/admissions/admission.routes.js';
+import { attendanceRouter } from './modules/attendance/attendance.routes.js';
 import { authRouter } from './modules/auth/auth.routes.js';
 import { lectureRouter } from './modules/lectures/lecture.routes.js';
 import { promotionRouter } from './modules/promotion/promotion.routes.js';
@@ -105,6 +106,7 @@ export function createServer(): Express {
   app.use('/api/v1/subject-offerings', subjectOfferingRouter);
   app.use('/api/v1/timetables', timetableRouter);
   app.use('/api/v1/lectures', lectureRouter);
+  app.use('/api/v1/attendances', attendanceRouter);
 
   // Route-not-found must go through the SAME error pipeline as every other
   // error (Phase 11) — a bare res.json() here previously produced a

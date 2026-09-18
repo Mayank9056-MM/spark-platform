@@ -20,7 +20,7 @@ CREATE TYPE "AdmissionStatus" AS ENUM ('CONFIRMED', 'CANCELLED');
 CREATE TYPE "AdmissionQuota" AS ENUM ('GOVERNMENT_QUOTA', 'MANAGEMENT_QUOTA');
 
 -- CreateEnum
-CREATE TYPE "StudentLifecycleStatus" AS ENUM ('ACTIVE', 'ON_GAP_YEAR', 'WITHDRAWN', 'DISCONTINUED', 'GRADUATED', 'ALUMNI');
+CREATE TYPE "StudentLifecycleStatus" AS ENUM ('ACTIVE', 'ON_GAP_YEAR', 'WITHDRAWN', 'DISCONTINUED', 'GRADUATED', 'ALUMNI', 'CANCELLED');
 
 -- CreateEnum
 CREATE TYPE "SemesterEnrollmentStatus" AS ENUM ('IN_PROGRESS', 'PROMOTED', 'REPEATED', 'DETAINED', 'WITHDRAWN', 'DISCONTINUED', 'GRADUATED');
@@ -259,6 +259,7 @@ CREATE TABLE "admissions" (
 -- CreateTable
 CREATE TABLE "student_enrollments" (
     "id" TEXT NOT NULL,
+    "admissionId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "programId" TEXT NOT NULL,
     "curriculumVersionId" TEXT NOT NULL,
@@ -708,10 +709,13 @@ CREATE INDEX "academic_years_isActive_idx" ON "academic_years"("isActive");
 CREATE UNIQUE INDEX "academic_years_label_key" ON "academic_years"("label");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "admissions_userId_key" ON "admissions"("userId");
+CREATE INDEX "admissions_userId_idx" ON "admissions"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "admissions_admissionNumber_key" ON "admissions"("admissionNumber");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "student_enrollments_admissionId_key" ON "student_enrollments"("admissionId");
 
 -- CreateIndex
 CREATE INDEX "student_enrollments_userId_idx" ON "student_enrollments"("userId");
@@ -904,6 +908,9 @@ ALTER TABLE "admissions" ADD CONSTRAINT "admissions_entrySemesterCatalogId_fkey"
 
 -- AddForeignKey
 ALTER TABLE "student_enrollments" ADD CONSTRAINT "student_enrollments_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "student_enrollments" ADD CONSTRAINT "student_enrollments_admissionId_fkey" FOREIGN KEY ("admissionId") REFERENCES "admissions"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "student_enrollments" ADD CONSTRAINT "student_enrollments_programId_fkey" FOREIGN KEY ("programId") REFERENCES "programs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
