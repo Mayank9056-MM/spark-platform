@@ -101,11 +101,22 @@ async function run(): Promise<void> {
   try {
     userLogger.info('Initial super-admin provisioning started');
 
+    userLogger.info(
+      process.env.INITIAL_SUPER_ADMIN_EMAIL
+        ? 'Initial super-admin email is configured'
+        : 'Initial super-admin email is NOT configured',
+    );
+
     const parsedCredentials = credentialsSchema.safeParse(process.env);
     if (!parsedCredentials.success) {
       userLogger.error(
         'Initial super-admin provisioning failed: invalid or missing configuration',
-        { missingOrInvalidFields: Object.keys(parsedCredentials.error.flatten().fieldErrors) },
+        {
+          issues: parsedCredentials.error.issues.map((i) => ({
+            field: i.path.join('.'),
+            message: i.message,
+          })),
+        },
       );
       process.exitCode = 1;
       return;
