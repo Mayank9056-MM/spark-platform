@@ -1,7 +1,6 @@
 import axios, { type AxiosResponse } from 'axios';
 import { type z } from 'zod';
 
-import { accessTokenStore } from '../auth/access-token-store';
 import { refreshAccessToken } from '../auth/refresh-session';
 import { expireSession } from '../auth/session-expiry';
 
@@ -16,18 +15,6 @@ import { toApiClientError } from './normalize-error';
  * schema; exporting the raw instance would invite unvalidated calls.
  */
 const client = createAxiosInstance();
-
-client.interceptors.request.use((config) => {
-  if (config.skipAuth !== true) {
-    const token = accessTokenStore.get();
-    if (token !== null) {
-      // Also runs when a request is replayed after a refresh, which is how the
-      // replay picks up the new token without any extra bookkeeping.
-      config.headers.set('Authorization', `Bearer ${token}`);
-    }
-  }
-  return config;
-});
 
 client.interceptors.response.use(undefined, handleResponseError);
 
@@ -82,7 +69,7 @@ export interface ApiRequestOptions {
   signal?: AbortSignal;
   /** Overrides the default request timeout. */
   timeoutMs?: number;
-  /** Send the in-memory access token and allow refresh-and-replay. Defaults to true. */
+  /** Allow refresh-and-replay on TOKEN_EXPIRED. Defaults to true. The browser always attaches cookies. */
   authenticated?: boolean;
 }
 
