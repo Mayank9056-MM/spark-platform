@@ -25,14 +25,9 @@ export function toPublicUser(user: User): UserPublicDTO {
   };
 }
 
-export function toLoginResponse(
-  user: User,
-  accessToken: string,
-  accessTokenExpiresAt: Date,
-): LoginResponseDTO {
+export function toLoginResponse(user: User, accessTokenExpiresAt: Date): LoginResponseDTO {
   return {
     user: toPublicUser(user),
-    accessToken,
     accessTokenExpiresAt: accessTokenExpiresAt.toISOString(),
   };
 }

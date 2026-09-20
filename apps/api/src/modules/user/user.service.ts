@@ -7,6 +7,7 @@ import { prisma } from '../../lib/prisma.js';
 import { recordAuditTx } from '../audit/audit.service.js';
 import { AuditEntityType } from '../audit/audit.types.js';
 import { authService } from '../auth/index.js';
+import { notificationService } from '../notifications/notification.service.js';
 
 import { userRepository } from './user.repository.js';
 import type {
@@ -36,7 +37,7 @@ export class UserService {
   async createUser(
     actorUserId: string,
     input: Omit<CreateUserInput, 'organizationId'>,
-  ): Promise<{ user: User; activationToken: string }> {
+  ): Promise<User> {
     const emailTaken = await userRepository.existsByEmail(input.email);
     if (emailTaken) {
       throw ApiError.conflict('A user with this email already exists', ErrorCode.DUPLICATE_ENTRY);
@@ -66,7 +67,17 @@ export class UserService {
 
     userLogger.info('User created', { userId: user.id, actorUserId });
 
-    return { user, activationToken };
+    // Strict: if the job cannot be stored the admin must see a failure.
+    // The raw token goes only into the job; the worker builds the link.
+    await notificationService.enqueue({
+      type: 'ACCOUNT_ACTIVATION',
+      payload: {
+        recipient: { userId: user.id, email: user.email, firstName: user.firstName },
+        rawActivationToken: activationToken,
+      },
+    });
+
+    return user;
   }
 
   /**

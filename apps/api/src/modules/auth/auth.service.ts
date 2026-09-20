@@ -8,10 +8,21 @@ import { hashPassword, verifyDummyPassword, verifyPassword } from '../../lib/pas
 import { generateOpaqueToken, hashToken } from '../../lib/tokens.js';
 import { recordAudit } from '../audit/audit.service.js';
 import { AuditEntityType } from '../audit/audit.types.js';
+import { notificationService } from '../notifications/notification.service.js';
+import type { NotificationRecipient } from '../notifications/notification.types.js';
 
 import { AUTH_CONSTANTS } from './auth.constants.js';
 import { authRepository } from './auth.repository.js';
 import type { AuthTokens, LoginParams, LoginResult, RequestMetadata } from './auth.types.js';
+
+function toRecipient(user: User): NotificationRecipient {
+  return { userId: user.id, email: user.email, firstName: user.firstName };
+}
+
+/** The timestamp setPasswordHash wrote, so the email matches the stored state. */
+function passwordChangedAt(user: User): string {
+  return (user.lastPasswordChangeAt ?? new Date()).toISOString();
+}
 
 export class AuthService {
   // Login
@@ -37,7 +48,7 @@ export class AuthService {
 
     const passwordValid = await verifyPassword(allowedUser.passwordHash, password);
     if (!passwordValid) {
-      await this.handleFailedLogin(allowedUser);
+      await this.handleFailedLogin(allowedUser, requestMeta);
       throw ApiError.unauthorized('Invalid email or password', ErrorCode.INVALID_CREDENTIALS);
     }
 
@@ -113,7 +124,7 @@ export class AuthService {
     return user;
   }
 
-  private async handleFailedLogin(user: User): Promise<void> {
+  private async handleFailedLogin(user: User, requestMeta: RequestMetadata): Promise<void> {
     const updated = await authRepository.incrementFailedLoginAttempts(user.id);
 
     if (updated.failedLoginAttempts >= AUTH_CONSTANTS.MAX_FAILED_LOGIN_ATTEMPTS) {
@@ -123,6 +134,22 @@ export class AuthService {
         userId: user.id,
         attempts: updated.failedLoginAttempts,
       });
+
+      // The increment is atomic, so exactly one request observes the counter
+      // at the threshold. Concurrent extra failures still lock (>=) but only
+      // this one alerts the owner.
+      if (updated.failedLoginAttempts === AUTH_CONSTANTS.MAX_FAILED_LOGIN_ATTEMPTS) {
+        await notificationService.enqueueBestEffort({
+          type: 'SECURITY_ALERT',
+          payload: {
+            recipient: toRecipient(user),
+            event: 'ACCOUNT_LOCKED',
+            occurredAt: new Date().toISOString(),
+            ipAddress: requestMeta.ipAddress,
+            userAgent: requestMeta.userAgent,
+          },
+        });
+      }
     } else {
       authLogger.warn('Failed login attempt', {
         userId: user.id,
@@ -170,6 +197,9 @@ export class AuthService {
       // (possibly holding a stolen earlier token) is presenting a token
       // that should no longer exist in usable form — revoke the whole
       // session, not just this token.
+      // Read BEFORE revoking: only the first detection on a live session
+      // alerts the owner, so replaying the same stale token does not repeat it.
+      const sessionBefore = await authRepository.findSessionById(existingToken.sessionId);
       await authRepository.revokeSession(existingToken.sessionId);
       authLogger.error('Refresh token reuse detected — session revoked', {
         sessionId: existingToken.sessionId,
@@ -183,6 +213,10 @@ export class AuthService {
         ipAddress: requestMeta.ipAddress ?? null,
         userAgent: requestMeta.userAgent ?? null,
       });
+
+      if (sessionBefore?.revokedAt === null) {
+        await this.notifyRefreshTokenReuse(sessionBefore.userId, requestMeta);
+      }
       throw ApiError.unauthorized(
         'Session invalidated — please log in again',
         ErrorCode.TOKEN_INVALID,
@@ -210,6 +244,28 @@ export class AuthService {
     if (elapsed > AUTH_CONSTANTS.SESSION_ACTIVITY_THROTTLE_MS) {
       await authRepository.touchSessionActivity(session.id);
     }
+  }
+
+  /** Only event/recipient/time/request metadata. Never the refresh token. */
+  private async notifyRefreshTokenReuse(
+    userId: string,
+    requestMeta: RequestMetadata,
+  ): Promise<void> {
+    const owner = await authRepository.findUserById(userId);
+    if (!owner) {
+      authLogger.warn('Refresh token reuse: no active user to alert', { userId });
+      return;
+    }
+    await notificationService.enqueueBestEffort({
+      type: 'SECURITY_ALERT',
+      payload: {
+        recipient: toRecipient(owner),
+        event: 'REFRESH_TOKEN_REUSE',
+        occurredAt: new Date().toISOString(),
+        ipAddress: requestMeta.ipAddress,
+        userAgent: requestMeta.userAgent,
+      },
+    });
   }
 
   // Logout / Session management
@@ -293,6 +349,11 @@ export class AuthService {
       newValue: { status: user.status },
     });
 
+    await notificationService.enqueueBestEffort({
+      type: 'PASSWORD_CHANGED',
+      payload: { recipient: toRecipient(user), changedAt: passwordChangedAt(user) },
+    });
+
     authLogger.info('Account activated', { userId: user.id });
   }
 
@@ -310,9 +371,11 @@ export class AuthService {
         expiresAt: new Date(Date.now() + AUTH_CONSTANTS.PASSWORD_RESET_TOKEN_TTL_MS),
       });
 
-      // TODO(notification module): enqueue a BullMQ job to email rawToken
-      // to user.email. Deliberately not implemented here — delivery is a
-      // notification-module concern, not an auth-module one.
+      await notificationService.enqueueBestEffort({
+        type: 'PASSWORD_RESET',
+        payload: { recipient: toRecipient(user), rawResetToken: rawToken },
+      });
+
       authLogger.info('Password reset token issued', { userId: user.id });
     } else {
       authLogger.info('Password reset requested for unknown/archived account', {
@@ -343,6 +406,11 @@ export class AuthService {
     // triggered by a compromise concern, leaving old sessions valid would
     // defeat the entire point.
     await authRepository.revokeAllSessionsForUser(user.id);
+
+    await notificationService.enqueueBestEffort({
+      type: 'PASSWORD_CHANGED',
+      payload: { recipient: toRecipient(user), changedAt: passwordChangedAt(user) },
+    });
 
     await recordAudit({
       actorUserId: user.id,

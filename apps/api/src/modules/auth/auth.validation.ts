@@ -11,11 +11,6 @@ const passwordSchema = z
   .regex(/[0-9]/, 'Password must contain a digit');
 
 export const loginBodySchema = z.object({
-  // TODO: this is a deliberate interim simplification. Once an
-  // `organization` module exists with real tenant resolution (subdomain
-  // or slug lookup), replace organizationId with something a human can
-  // actually type — a raw UUID in a login form is not the final UX.
-  organizationId: z.uuid(),
   email: z.email().transform(normalizeEmail),
   password: z.string().min(1, 'Password is required'),
 });
@@ -28,7 +23,6 @@ export const activateAccountBodySchema = z.object({
 export type ActivateAccountBody = z.infer<typeof activateAccountBodySchema>;
 
 export const requestPasswordResetBodySchema = z.object({
-  organizationId: z.uuid(),
   email: z.email().transform(normalizeEmail),
 });
 export type RequestPasswordResetBody = z.infer<typeof requestPasswordResetBodySchema>;

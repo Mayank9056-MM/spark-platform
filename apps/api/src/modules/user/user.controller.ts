@@ -15,18 +15,8 @@ export const createUser = async (req: Request, res: Response): Promise<void> => 
   const body = req.valid?.body as CreateUserBody;
   const actorUserId = req.user!.id;
 
-  const { user, activationToken } = await userService.createUser(actorUserId, body);
-
-  /**
-   * TEMPORARY:
-   *
-   * activationToken is returned in the response because the notification
-   * module has not been implemented yet.
-   *
-   * Remove activationToken from this response as soon as email/notification
-   * delivery is available.
-   */
-  ApiResponse.created(res, { user: toUserProfile(user), activationToken }, 'User created');
+  const user = await userService.createUser(actorUserId, body);
+  ApiResponse.created(res, { user: toUserProfile(user) }, 'User created');
 };
 
 export const getMe = async (req: Request, res: Response): Promise<void> => {
