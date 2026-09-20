@@ -32,10 +32,9 @@ export const userPublicSchema = z.object({
   createdAt: isoDateTime,
 });
 
-/** Mirrors `LoginResponseDTO`. The refresh token is not in the body; it is an httpOnly cookie. */
+/** Mirrors `LoginResponseDTO`. Neither token is in the body; both are httpOnly cookies. */
 export const loginResponseSchema = z.object({
   user: userPublicSchema,
-  accessToken: z.string().min(1),
   accessTokenExpiresAt: isoDateTime,
 });
 
