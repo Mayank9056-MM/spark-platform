@@ -4,7 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import * as React from 'react';
 
-import { makeQueryClient } from '@/lib/query-provider';
+import { makeQueryClient } from '@/providers/query-provider';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = React.useState(() => makeQueryClient());

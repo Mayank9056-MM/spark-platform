@@ -6,7 +6,7 @@ import { signAccessToken } from '../../lib/jwt.js';
 import { authLogger } from '../../lib/logger.js';
 import { hashPassword, verifyDummyPassword, verifyPassword } from '../../lib/password.js';
 import { generateOpaqueToken, hashToken } from '../../lib/tokens.js';
-import { recordAudit } from '../audit/audit.service.js';
+import { recordAudit, recordAuditTx } from '../audit/audit.service.js';
 import { AuditEntityType } from '../audit/audit.types.js';
 import { notificationService } from '../notifications/notification.service.js';
 import type { NotificationRecipient } from '../notifications/notification.types.js';
@@ -326,29 +326,68 @@ export class AuthService {
 
   async activateAccount(rawToken: string, newPassword: string): Promise<void> {
     const tokenHash = hashToken(rawToken);
-    const verificationToken =
-      (await authRepository.findValidVerificationToken(tokenHash, 'ACCOUNT_ACTIVATION')) ??
-      (await authRepository.findValidVerificationToken(tokenHash, 'INVITE_USER'));
-
-    if (!verificationToken) {
-      throw ApiError.badRequest(
+    const invalidLink = () =>
+      ApiError.badRequest(
         'This activation link is invalid or has expired.',
         ErrorCode.TOKEN_INVALID,
       );
+
+    // Cheap pre-check OUTSIDE the transaction so garbage tokens never cost an
+    // Argon2 hash. It is not authoritative: the transaction below re-checks
+    // everything atomically. ACCOUNT_ACTIVATION only. INVITE_USER and
+    // PASSWORD_RESET tokens are rejected here.
+    const candidate = await authRepository.findValidVerificationToken(
+      tokenHash,
+      'ACCOUNT_ACTIVATION',
+    );
+    if (!candidate) {
+      throw invalidLink();
     }
 
+    // Hashed before the transaction opens so no DB transaction is held during CPU work.
     const passwordHash = await hashPassword(newPassword);
-    const user = await authRepository.setPasswordHash(verificationToken.userId, passwordHash);
-    await authRepository.markVerificationTokenUsed(verificationToken.id);
 
-    await recordAudit({
-      actorUserId: user.id,
-      action: 'UPDATE',
-      entityType: AuditEntityType.USER,
-      entityId: user.id,
-      newValue: { status: user.status },
+    const user = await authRepository.transaction(async (tx) => {
+      // 1. Consume first. This takes the row lock, so a concurrent request
+      //    with the same token waits here and then matches 0 rows.
+      const consumed = await authRepository.consumeVerificationToken(
+        tx,
+        candidate.id,
+        'ACCOUNT_ACTIVATION',
+      );
+      if (!consumed) {
+        throw invalidLink();
+      }
+
+      // 2. Only a PENDING_ACTIVATION user can be activated. If this fails the
+      //    thrown error rolls back step 1, so the token is not burned.
+      const activated = await authRepository.activatePendingUser(
+        tx,
+        candidate.userId,
+        passwordHash,
+      );
+      if (!activated) {
+        authLogger.warn('Activation rejected: user is not pending activation', {
+          userId: candidate.userId,
+        });
+        // Same generic error as a bad token: don't reveal account state.
+        throw invalidLink();
+      }
+
+      // 3. Transactional audit: no audit row means no activation.
+      await recordAuditTx(tx, {
+        actorUserId: activated.id,
+        action: 'ACCOUNT_ACTIVATED',
+        entityType: AuditEntityType.USER,
+        entityId: activated.id,
+        oldValue: { status: 'PENDING_ACTIVATION' },
+        newValue: { status: activated.status },
+      });
+
+      return activated;
     });
 
+    // After commit; nothing external ever runs inside the transaction.
     await notificationService.enqueueBestEffort({
       type: 'PASSWORD_CHANGED',
       payload: { recipient: toRecipient(user), changedAt: passwordChangedAt(user) },
