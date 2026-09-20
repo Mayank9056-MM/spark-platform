@@ -3,7 +3,9 @@ import { serializeError } from '@spark/shared/logger';
 
 import { createServer } from './app.js';
 import { env } from './config/env.js';
+import { closeRedisConnections } from './infrastructure/redis/redis.connection.js';
 import { logger, shutdownLogger } from './lib/logger.js';
+import { notificationQueue } from './modules/notifications/notification.queue.js';
 
 const server = createServer();
 const httpServer = server.listen(env.PORT, () => {
@@ -43,7 +45,9 @@ function gracefulShutdown(signal: string): void {
         process.exit(1);
       } else {
         try {
-          shutdownLogger.info('HTTP server closed, disconnecting Prisma');
+          shutdownLogger.info('HTTP server closed, disconnecting Prisma and Redis');
+          await notificationQueue.close();
+          await Promise.all([prisma.$disconnect(), closeRedisConnections()]);
           await prisma.$disconnect();
 
           shutdownLogger.info('Shutdown complete');

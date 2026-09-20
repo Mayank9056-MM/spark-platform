@@ -11,6 +11,7 @@ import {
   errorLoggerMiddleware,
   errorResponderMiddleware,
 } from './middlewares/error-handler.middleware.js';
+import { requireTrustedOrigin } from './middlewares/origin-check.middleware.js';
 import { rateLimiter } from './middlewares/rate-limit.middleware.js';
 import { requestLoggerMiddleware } from './middlewares/request-logger.middleware.js';
 import {
@@ -74,6 +75,8 @@ export function createServer(): Express {
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID'],
     }),
   );
+
+  app.use(requireTrustedOrigin);
 
   app.use(express.json({ limit: '16kb' }));
   app.use(express.urlencoded({ extended: true, limit: '16kb' }));
