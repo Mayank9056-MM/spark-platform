@@ -1,4 +1,5 @@
 import type {
+  PrismaClient,
   RefreshToken,
   Session,
   User,
@@ -9,6 +10,8 @@ import { Prisma } from '@spark/database';
 
 import { normalizeEmail } from '../../lib/email.js';
 import { prisma } from '../../lib/prisma.js';
+
+type Db = PrismaClient | Prisma.TransactionClient;
 
 interface CreateSessionInput {
   userId: string;
@@ -97,14 +100,15 @@ export class AuthRepository {
     });
   }
 
-  async setPasswordHash(userId: string, passwordHash: string): Promise<User> {
-    return prisma.user.update({
+  /**
+   * Password storage ONLY. Deliberately does not touch `status`: account
+   * lifecycle changes (PENDING_ACTIVATION -> ACTIVE) belong to the business
+   * operation that owns them, never to a generic "set password" helper.
+   */
+  async setPasswordHash(userId: string, passwordHash: string, db: Db = prisma): Promise<User> {
+    return db.user.update({
       where: { id: userId },
-      data: {
-        passwordHash,
-        status: 'ACTIVE',
-        lastPasswordChangeAt: new Date(),
-      },
+      data: { passwordHash, lastPasswordChangeAt: new Date() },
     });
   }
 
@@ -259,6 +263,49 @@ export class AuthRepository {
    */
   async findSessionById(sessionId: string): Promise<Session | null> {
     return prisma.session.findUnique({ where: { id: sessionId } });
+  }
+
+  /** Lets the service run a multi-step DB operation atomically without importing prisma. */
+  async transaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return prisma.$transaction(fn);
+  }
+
+  /**
+   * Conditional single-use consumption:
+   *   UPDATE verification_tokens SET used_at = $now
+   *   WHERE id = $id AND purpose = $purpose AND used_at IS NULL AND expires_at > $now
+   * Returns true only when exactly this call consumed the token. Under
+   * concurrency, the second UPDATE waits on the row lock and re-checks the
+   * WHERE clause after the first commits, so it matches 0 rows.
+   */
+  async consumeVerificationToken(
+    db: Db,
+    tokenId: string,
+    purpose: VerificationPurpose,
+    now: Date = new Date(),
+  ): Promise<boolean> {
+    const result = await db.verificationToken.updateMany({
+      where: { id: tokenId, purpose, usedAt: null, expiresAt: { gt: now } },
+      data: { usedAt: now },
+    });
+    return result.count === 1;
+  }
+
+  /**
+   * The ONLY place that moves a user PENDING_ACTIVATION -> ACTIVE. Conditional
+   * on the current status, so SUSPENDED / DEACTIVATED / LOCKED / ARCHIVED (or
+   * soft-deleted) users match 0 rows and are never reactivated.
+   * Returns the updated user, or null when the user was not pending.
+   */
+  async activatePendingUser(db: Db, userId: string, passwordHash: string): Promise<User | null> {
+    const result = await db.user.updateMany({
+      where: { id: userId, status: 'PENDING_ACTIVATION', deletedAt: null },
+      data: { passwordHash, status: 'ACTIVE', lastPasswordChangeAt: new Date() },
+    });
+    if (result.count !== 1) {
+      return null;
+    }
+    return db.user.findUniqueOrThrow({ where: { id: userId } });
   }
 }
 
