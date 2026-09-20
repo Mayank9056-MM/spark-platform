@@ -40,7 +40,6 @@ export interface SessionSummaryDTO {
 
 export interface LoginResponseDTO {
   user: UserPublicDTO;
-  accessToken: string;
   accessTokenExpiresAt: string;
 }
 
