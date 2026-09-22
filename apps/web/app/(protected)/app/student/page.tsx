@@ -1,19 +1,13 @@
 'use client';
 
-import { useAuth } from '@/features/auth';
+import { DASHBOARD_SECTIONS, PermissionFilteredDashboard } from '@/features/dashboard';
 
 export default function StudentPage() {
-  const { currentUser } = useAuth();
-
   return (
-    <div className="flex flex-col gap-1">
-      <h1 className="text-lg font-semibold">S.P.A.R.K. Student</h1>
-      {currentUser !== undefined && (
-        <p className="text-muted-foreground text-sm">
-          Signed in as {currentUser.user.firstName} {currentUser.user.lastName} (
-          {currentUser.user.email})
-        </p>
-      )}
-    </div>
+    <PermissionFilteredDashboard
+      title="Student Portal"
+      description="Your academic information will appear here as it becomes available."
+      sections={DASHBOARD_SECTIONS}
+    />
   );
 }
