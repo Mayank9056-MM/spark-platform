@@ -1,5 +1,8 @@
 import type { User, UserStatus } from '@spark/database';
 
+import type { PermissionKey } from '../rbac/index.js';
+import type { RoleSummaryDTO } from '../rbac/roles/role.types.js';
+
 export interface AuthTokens {
   accessToken: string;
   accessTokenExpiresAt: Date;
@@ -53,4 +56,18 @@ export interface LoginParams {
   email: string;
   password: string;
   requestMeta: RequestMetadata;
+}
+
+/**
+ * Response shape for GET /auth/me. `user` goes through the same
+ * toPublicUser as login — never a second user-shaping function. `roles`
+ * only ever reflects currently ACTIVE assignments. `permissions` is the
+ * flat, deduplicated union of every active role's granted keys — not a
+ * per-role breakdown, since nothing on the frontend needs to know which
+ * role granted a given permission.
+ */
+export interface CurrentUserDTO {
+  user: UserPublicDTO;
+  roles: RoleSummaryDTO[];
+  permissions: PermissionKey[];
 }
