@@ -1,7 +1,5 @@
-import React from 'react';
+import { ModuleUnavailable } from '@/components/erp/module-unavailable';
 
-const page = () => {
-  return <div>page</div>;
-};
-
-export default page;
+export default function FacultyDetailPage() {
+  return <ModuleUnavailable title="Faculty" />;
+}

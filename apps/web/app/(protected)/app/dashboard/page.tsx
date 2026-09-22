@@ -1,19 +1,13 @@
 'use client';
 
-import { useAuth } from '@/features/auth';
+import { DASHBOARD_SECTIONS, PermissionFilteredDashboard } from '@/features/dashboard';
 
 export default function DashboardPage() {
-  const { currentUser } = useAuth();
-
   return (
-    <div className="flex flex-col gap-1">
-      <h1 className="text-lg font-semibold">S.P.A.R.K. Dashboard</h1>
-      {currentUser !== undefined && (
-        <p className="text-muted-foreground text-sm">
-          Signed in as {currentUser.user.firstName} {currentUser.user.lastName} (
-          {currentUser.user.email})
-        </p>
-      )}
-    </div>
+    <PermissionFilteredDashboard
+      title="Dashboard"
+      description="An overview of the modules available to your account."
+      sections={DASHBOARD_SECTIONS}
+    />
   );
 }

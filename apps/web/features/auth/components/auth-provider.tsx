@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { createContext, type ReactNode, useEffect } from 'react';
 
 import { LOGIN_PATH } from '../constants';
-import { CURRENT_USER_QUERY_KEY, useCurrentUser } from '../hooks/use-current-user';
+import { useCurrentUser } from '../hooks/use-current-user';
 import { useLogout } from '../hooks/use-logout';
 import { isUnauthenticatedError } from '../lib/auth-status';
 import type { CurrentUser } from '../schemas/session.schema';
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(
     () =>
       setSessionExpiredHandler(() => {
-        queryClient.removeQueries({ queryKey: CURRENT_USER_QUERY_KEY });
+        queryClient.clear(); // was: removeQueries({ queryKey: CURRENT_USER_QUERY_KEY })
         router.replace(LOGIN_PATH);
       }),
     [queryClient, router],
@@ -73,14 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
       logoutMutation.mutate(undefined, {
-        // Fires whether the call succeeded or failed. Logout fails
-        // closed: even if the network call itself errors, the user's
-        // intent was to leave, so local trust in the session is
-        // dropped and they're sent to /login either way — the backend
-        // still owns actual cookie invalidation.
         onSettled: () => {
           sessionState.clear();
-          queryClient.removeQueries({ queryKey: CURRENT_USER_QUERY_KEY });
+          queryClient.clear(); // was: removeQueries({ queryKey: CURRENT_USER_QUERY_KEY })
           router.replace(LOGIN_PATH);
         },
       });

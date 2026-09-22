@@ -56,6 +56,31 @@ const ROLE_PRIORITY: readonly RoleKey[] = [
   'student',
 ];
 
+/**
+ * Where an authenticated-but-roleless user lands: no active
+ * RoleAssignment rows, or only unrecognised role keys.
+ *
+ * This must never be a permission-gated route. A user with zero active
+ * role assignments necessarily resolves to zero role-derived permissions
+ * (see apps/api/.../auth/auth.service.ts#getCurrentUser — permissions
+ * are resolved exclusively from getActiveAssignmentsForUser's roleIds),
+ * so pointing this fallback at a RequirePermission-gated route creates
+ * an unrecoverable loop:
+ *
+ *   no roles → fallback route → RequirePermission fails → /forbidden
+ *   → "Return to dashboard" calls resolveDefaultRoute() again
+ *   → same gated fallback → /forbidden → ...
+ *
+ * That is exactly what '/app/users' (gated on 'user:read') did.
+ * '/app/dashboard' is safe: it has no layout.tsx guard beyond the
+ * ProtectedBoundary every /app/* route already passes, and
+ * PermissionFilteredDashboard already renders EmptyDashboardState for a
+ * zero-permission user instead of blocking access. This grants no new
+ * permissions — DASHBOARD_SECTIONS is still filtered by the user's real
+ * (here, empty) permission set.
+ */
+const ROLELESS_FALLBACK_ROUTE: AppDestination = '/app/dashboard';
+
 function isKnownRole(key: string): key is RoleKey {
   return (ROLE_KEYS as readonly string[]).includes(key);
 }
@@ -63,19 +88,20 @@ function isKnownRole(key: string): key is RoleKey {
 /**
  * Resolves the default landing route for an authenticated user from their
  * role keys alone. Independent of React/router/UI — plain data in, plain
- * data out, so it's trivially unit-testable (even though no tests are
- * being added right now).
+ * data out, so it's trivially unit-testable.
  *
- * - No roles → /app/users (authenticated but unassigned; NOT unauthenticated).
+ * - No roles → ROLELESS_FALLBACK_ROUTE (authenticated but unassigned; NOT
+ *   unauthenticated).
  * - One or more known roles → the highest-priority role's destination.
- * - Only unknown/malformed role keys → /app/users, same as no roles: an
- *   unrecognised role key is never assumed to carry any privilege.
+ * - Only unknown/malformed role keys → ROLELESS_FALLBACK_ROUTE, same as
+ *   no roles: an unrecognised role key is never assumed to carry any
+ *   privilege.
  */
 export function resolveDefaultRoute(roleKeys: readonly string[]): AppDestination {
   const known = roleKeys.filter(isKnownRole);
 
   if (known.length === 0) {
-    return '/app/users';
+    return ROLELESS_FALLBACK_ROUTE;
   }
 
   for (const role of ROLE_PRIORITY) {
@@ -84,7 +110,8 @@ export function resolveDefaultRoute(roleKeys: readonly string[]): AppDestination
     }
   }
 
-  // Unreachable — every RoleKey appears in ROLE_PRIORITY. Fails safe
-  // rather than silently, if that invariant is ever broken.
-  return '/app/users';
+  // Unreachable — every RoleKey appears in ROLE_PRIORITY. Fails safe to
+  // the same unguarded fallback as the no-roles case, rather than to a
+  // permission-gated route, if that invariant is ever broken.
+  return ROLELESS_FALLBACK_ROUTE;
 }
