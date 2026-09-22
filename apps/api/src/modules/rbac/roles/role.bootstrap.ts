@@ -2,6 +2,7 @@
 
 import { prisma } from '../../../lib/prisma.js';
 import { PERMISSION_CATALOG } from '../permissions/permission.constants.js';
+import type { CatalogPermissionKey } from '../permissions/permission.constants.js';
 import { permissionRepository } from '../permissions/permission.repository.js';
 import type { PermissionId } from '../permissions/permission.types.js';
 
@@ -12,83 +13,181 @@ import { roleLogger } from '@/lib/logger.js';
 /**
  * Idempotent RBAC system-role bootstrap.
  *
- * Ensures the platform's protected administrative roles — `admin` and
- * `super_admin` — exist as `isSystemDefined: true` Role rows and hold
- * every permission currently defined in PERMISSION_CATALOG
- * (permission.constants.ts). This is a deliberate, explicit policy
- * decision (both roles receive identical, full-catalog privileges), not
- * an inference drawn from either role's name.
+ * Ensures the platform's full initial role catalog exists as
+ * `isSystemDefined: true` Role rows, each holding the permission set
+ * declared in SYSTEM_ROLES below. `admin` and `super_admin` keep their
+ * original, deliberate policy of holding the ENTIRE permission catalog
+ * (PERMISSION_CATALOG) — completely unchanged from before. Every other
+ * role (principal, hod, faculty, officer, clerk, student, secretary) gets
+ * an explicit, curated subset, defined inline below — never inferred,
+ * never exceeding what PERMISSION_CATALOG actually contains. Typing each
+ * role's permissionKeys as `readonly CatalogPermissionKey[]` makes an
+ * invented or misspelled key a compile error, not a silent runtime gap.
  *
- * These two keys match `middlewares/interim-admin.guard.ts`'s existing
- * `ADMIN_ROLE_KEYS = ['admin', 'super_admin']` exactly — this file
- * fulfills a naming convention that guard already assumed exists,
- * rather than introducing a new one.
+ * ── Why `student` gets an empty permission set ──────────────────────
+ * ScopeType is COLLEGE | DEPARTMENT only — there is no "own records" /
+ * self scope anywhere in the schema or authorization model, and the
+ * catalog has no `result`/`fee` resource at all. Granting `student` any
+ * existing :read permission (e.g. attendance:read) would let them read
+ * every attendance/lecture/timetable record at whatever scope their
+ * assignment carries — college- or department-wide — not just their own.
+ * That is a real over-exposure, not "student self-service," so this
+ * bootstrap deliberately grants `student` NOTHING. Real self-service
+ * access needs a scope-model addition (e.g. a SELF scope, or an
+ * ownership-based authorization layer) that is explicitly OUT OF SCOPE
+ * here — do not add one as part of this bootstrap.
  *
- * ── Ordering dependency ─────────────────────────────────────────────
- * This function assumes bootstrapPermissions() (permission.bootstrap.ts)
- * has already run to completion and committed — every PERMISSION_CATALOG
- * entry must already exist as a Permission row before this runs, since
- * RolePermission.permissionId is a real foreign key. The pre-flight
- * resolution loop below fails loudly (rather than silently no-op'ing)
- * if that invariant doesn't hold, so a caller that gets the order wrong
- * finds out immediately, not via a confusing empty result.
+ * ── Scope caveat ──────────────────────────────────────────────────────
+ * This file only creates Role and RolePermission rows. It never creates a
+ * RoleAssignment, and RolePermission has no scope column — scope belongs
+ * exclusively to RoleAssignment, assigned to a specific user elsewhere,
+ * later. So every grant below (hod's included) is a plain, unscoped
+ * resource:action RolePermission — identical in kind to admin/
+ * super_admin's grants, just a smaller set. Whether a DEPARTMENT-scoped
+ * RoleAssignment actually narrows what a role can do at runtime depends
+ * entirely on whether each resource's routes pass a `getScope` resolver
+ * into `authorize()` (see authorization.middleware.ts) — that has NOT
+ * been verified against the department/timetable/facultyAssignment/
+ * lecture/attendance/promotion/admission route files as part of this
+ * task, and nothing here changes that route wiring.
  *
- * ── Idempotency ──────────────────────────────────────────────────────
- * Role identity is `Role.key` (@unique). RolePermission identity is the
- * composite (roleId, permissionId) primary key. Both are honored via
- * upsert-shaped primitives (roleRepository.createSystemRole is
- * insert-only and is therefore only called when no existing row was
- * found in the pre-flight read; permissionRepository.upsertRoleGrant is
- * a true upsert). Running this any number of times converges to the
- * same two roles holding the same full grant set — never duplicate
- * roles, never duplicate RolePermission rows, never a second identity
- * for `admin`/`super_admin`.
+ * ── Naming convention ────────────────────────────────────────────────
+ * Role keys stay lowercase snake_case (`principal`, `hod`, ...), matching
+ * the existing `admin`/`super_admin` convention.
  *
- * ── Privilege-escalation guard ───────────────────────────────────────
- * If a role with key `admin` or `super_admin` already exists but is NOT
- * system-defined (e.g. an operator previously created an ordinary role
- * that happens to use that key through the regular role API), this
- * function refuses to proceed for that role and throws — it will never
- * silently grant every catalog permission to a role it didn't itself
- * provision as protected. If the existing role IS system-defined but
- * has been archived (`deletedAt` set), this function throws rather than
- * silently reviving it, silently granting it permissions while archived,
- * or completing a run that leaves a protected role unresolved — restoring
- * a role is a distinct, deliberate lifecycle action outside this
- * bootstrap's scope and must be done explicitly (roleRepository.restore)
- * before rerunning.
- *
- * ── Transaction boundary ─────────────────────────────────────────────
- * All reads (resolving permission ids, classifying each role's current
- * state) happen before any write, matching this codebase's established
- * convention (see role.service.ts's createRole: existsByKey check
- * outside the transaction, mutation inside it). All writes — every role
- * creation and every RolePermission grant, across both system roles —
- * happen inside a single `prisma.$transaction`: either the entire batch
- * commits, or none of it does, so no role is ever left half-granted.
- *
- * This function deliberately does NOT touch or re-wrap
- * bootstrapPermissions()'s own transaction — that remains its own
- * independently atomic, unmodified step. The two-step ordering
- * (permissions commit fully, then roles/grants commit fully) is what
- * guarantees correctness, not a shared transaction across both.
- *
- * Does NOT: create RoleAssignments, assign either role to any user,
- * modify any pre-existing custom role, or depend on Express/HTTP/any
- * authenticated actor.
- *
- * Failures are never swallowed — a thrown conflict/invariant error, or
- * any rejected write, propagates out of this function uncaught.
+ * ── Everything else is unchanged in spirit from before ──────────────
+ * Same ordering dependency on bootstrapPermissions() having already run,
+ * same idempotency guarantee (Role.key unique + upsertRoleGrants' INSERT
+ * ... ON CONFLICT DO NOTHING — additive only, never revokes a grant that
+ * falls out of a role's declared set on a later edit of this file), same
+ * privilege-escalation guard (refuses to "adopt" a same-keyed non-system
+ * role), same archived-role guard, same pre-flight-reads-then-single-
+ * transaction-writes structure.
  */
 
 interface SystemRoleDefinition {
   readonly key: string;
   readonly displayName: string;
+  /**
+   * 'ALL' preserves admin/super_admin's original documented policy.
+   * Every other role gets an explicit array — a deliberate subset of
+   * PERMISSION_CATALOG, never the full catalog by default.
+   */
+  readonly permissionKeys: 'ALL' | readonly CatalogPermissionKey[];
 }
 
 const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
-  { key: 'admin', displayName: 'Administrator' },
-  { key: 'super_admin', displayName: 'Super Administrator' },
+  { key: 'admin', displayName: 'Administrator', permissionKeys: 'ALL' },
+  { key: 'super_admin', displayName: 'Super Administrator', permissionKeys: 'ALL' },
+  {
+    key: 'principal',
+    displayName: 'Principal',
+    permissionKeys: [
+      'department:read',
+      'program:read',
+      'curriculumVersion:read',
+      'semesterCatalog:read',
+      'subject:read',
+      'electiveGroup:read',
+      'academicYear:read',
+      'admission:read',
+      'promotion:read',
+      'facultyAssignment:read',
+      'timetable:read',
+      'lecture:read',
+      'attendance:read',
+      'user:read',
+    ],
+  },
+  {
+    key: 'hod',
+    displayName: 'Head of Department',
+    permissionKeys: [
+      'department:read',
+      'program:read',
+      'curriculumVersion:read',
+      'semesterCatalog:read',
+      'subject:read',
+      'electiveGroup:read',
+      'academicYear:read',
+      'admission:read',
+      'promotion:create',
+      'promotion:read',
+      'facultyAssignment:create',
+      'facultyAssignment:read',
+      'timetable:create',
+      'timetable:read',
+      'lecture:create',
+      'lecture:read',
+      'attendance:read',
+      'user:read',
+    ],
+  },
+  {
+    key: 'faculty',
+    displayName: 'Faculty',
+    permissionKeys: [
+      'subject:read',
+      'facultyAssignment:read',
+      'timetable:read',
+      'semesterCatalog:read',
+      'academicYear:read',
+      'department:read',
+    ],
+  },
+  {
+    key: 'officer',
+    displayName: 'Officer',
+    permissionKeys: [
+      'user:read',
+      'department:read',
+      'program:read',
+      'curriculumVersion:read',
+      'semesterCatalog:read',
+      'subject:read',
+      'electiveGroup:read',
+      'academicYear:read',
+      'admission:create',
+      'admission:read',
+      'admission:update',
+      'facultyAssignment:read',
+      'timetable:read',
+    ],
+  },
+  {
+    key: 'clerk',
+    displayName: 'Clerk',
+    permissionKeys: [
+      'user:read',
+      'department:read',
+      'program:read',
+      'semesterCatalog:read',
+      'admission:create',
+      'admission:read',
+    ],
+  },
+  {
+    key: 'student',
+    displayName: 'Student',
+    // Deliberately empty — see file header.
+    permissionKeys: [],
+  },
+  {
+    key: 'secretary',
+    displayName: 'Secretary',
+    permissionKeys: [
+      'user:read',
+      'department:read',
+      'program:read',
+      'curriculumVersion:read',
+      'semesterCatalog:read',
+      'academicYear:read',
+      'admission:read',
+      'promotion:read',
+      'facultyAssignment:read',
+      'timetable:read',
+    ],
+  },
 ];
 
 export async function bootstrapSystemRoles(): Promise<void> {
@@ -98,7 +197,10 @@ export async function bootstrapSystemRoles(): Promise<void> {
   });
 
   // ── Pre-flight: resolve every catalog permission's database id ─────
-  const permissionIds: PermissionId[] = [];
+  // Still resolves the FULL catalog (not just what's referenced below):
+  // this preserves the existing invariant check that bootstrapPermissions()
+  // has fully run, and 'ALL' roles need every id regardless.
+  const permissionIdByKey = new Map<CatalogPermissionKey, PermissionId>();
   for (const entry of PERMISSION_CATALOG) {
     const permission = await permissionRepository.findByKey(entry.key);
     if (!permission) {
@@ -108,7 +210,28 @@ export async function bootstrapSystemRoles(): Promise<void> {
           'bootstrapSystemRoles().',
       );
     }
-    permissionIds.push(permission.id);
+    permissionIdByKey.set(entry.key, permission.id);
+  }
+  const allPermissionIds = [...permissionIdByKey.values()];
+
+  /** Resolves a role definition's declared keys to database ids, failing loudly on an unknown key. */
+  function resolvePermissionIds(def: SystemRoleDefinition): PermissionId[] {
+    if (def.permissionKeys === 'ALL') {
+      return allPermissionIds;
+    }
+    return def.permissionKeys.map((key) => {
+      const id = permissionIdByKey.get(key);
+      if (!id) {
+        // Unreachable given CatalogPermissionKey's compile-time constraint
+        // and the full-catalog pre-flight loop above — fails loudly rather
+        // than silently granting nothing if it ever somehow isn't.
+        throw new Error(
+          `RBAC bootstrap invariant violated: role "${def.key}" references unknown ` +
+            `permission "${key}".`,
+        );
+      }
+      return id;
+    });
   }
 
   // ── Pre-flight: classify each intended system role against current state ──
@@ -116,6 +239,7 @@ export async function bootstrapSystemRoles(): Promise<void> {
     readonly key: string;
     readonly displayName: string;
     readonly existingId: string | null;
+    readonly permissionIds: readonly PermissionId[];
   }[] = [];
 
   for (const roleDef of SYSTEM_ROLES) {
@@ -144,10 +268,11 @@ export async function bootstrapSystemRoles(): Promise<void> {
       key: roleDef.key,
       displayName: roleDef.displayName,
       existingId: existing ? existing.id : null,
+      permissionIds: resolvePermissionIds(roleDef),
     });
   }
 
-  // ── Write phase: ensure each role exists and holds every catalog permission ──
+  // ── Write phase: ensure each role exists and holds at least its declared grants ──
   await prisma.$transaction(async (tx) => {
     for (const roleDef of rolesToEnsure) {
       const roleId =
@@ -162,13 +287,13 @@ export async function bootstrapSystemRoles(): Promise<void> {
       const newlyGrantedCount = await permissionRepository.upsertRoleGrants(
         tx,
         roleId,
-        permissionIds,
+        roleDef.permissionIds,
       );
 
       roleLogger.info('RBAC system role ensured', {
         key: roleDef.key,
         roleId,
-        totalPermissionCount: permissionIds.length,
+        totalPermissionCount: roleDef.permissionIds.length,
         newlyGrantedCount,
       });
     }
