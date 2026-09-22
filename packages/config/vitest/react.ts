@@ -1,7 +1,7 @@
 import react from '@vitejs/plugin-react';
 import { mergeConfig, type ViteUserConfig } from 'vitest/config';
 
-import { baseConfig } from './base.js';
+import { baseConfig } from './base.ts';
 
 export const reactConfig: ViteUserConfig = mergeConfig(baseConfig, {
   plugins: [react()],
