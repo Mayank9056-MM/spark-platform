@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { PermissionGuard } from '@/components/auth/permission-guard';
 import { ModuleNotConnected } from '@/components/erp/module-not-connected';
 import { ModuleShell } from '@/components/erp/module-shell';
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 
 export default function AdmissionsPage() {
   return (
@@ -15,10 +15,14 @@ export default function AdmissionsPage() {
       description="Student admission records for the current academic year."
       actions={
         <PermissionGuard require="admission:create">
-          <Button size="sm" render={<Link href="/app/admissions/new" />}>
+          <Link
+            href="/app/admissions/new"
+            data-slot="button"
+            className={buttonVariants({ size: 'sm' })}
+          >
             <PlusIcon aria-hidden="true" />
             Record admission
-          </Button>
+          </Link>
         </PermissionGuard>
       }
     >
