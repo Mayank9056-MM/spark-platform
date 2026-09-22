@@ -1,19 +1,28 @@
 'use client';
 
-import { useAuth } from '@/features/auth';
+import { PlusIcon } from 'lucide-react';
+import Link from 'next/link';
+
+import { PermissionGuard } from '@/components/auth/permission-guard';
+import { ModuleNotConnected } from '@/components/erp/module-not-connected';
+import { ModuleShell } from '@/components/erp/module-shell';
+import { Button } from '@/components/ui/button';
 
 export default function UsersPage() {
-  const { currentUser } = useAuth();
-
   return (
-    <div className="flex flex-col gap-1">
-      <h1 className="text-lg font-semibold">User Management</h1>
-      {currentUser !== undefined && (
-        <p className="text-muted-foreground text-sm">
-          Signed in as {currentUser.user.firstName} {currentUser.user.lastName} (
-          {currentUser.user.email})
-        </p>
-      )}
-    </div>
+    <ModuleShell
+      title="User Management"
+      description="User accounts across the institution."
+      actions={
+        <PermissionGuard require="user:create">
+          <Button size="sm" render={<Link href="/app/users/new" />}>
+            <PlusIcon aria-hidden="true" />
+            Create user
+          </Button>
+        </PermissionGuard>
+      }
+    >
+      <ModuleNotConnected resource="Users" />
+    </ModuleShell>
   );
 }
