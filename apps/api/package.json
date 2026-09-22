@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "description": "",
-  "main": "dist/server.ts",
+  "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.build.json",
@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "clean": "rm -rf dist",
     "db:seed:permissions": "tsx src/scripts/seed-permissions.ts",
-    "db:bootstrap:super-admin": "tsx src/scripts/bootstrap-initial-super-admin.ts"
+    "db:bootstrap:super-admin": "tsx src/scripts/bootstrap-initial-super-admin.ts",
+    "worker": "node dist/workers/worker.bootstrap.js"
   },
   "keywords": [],
   "author": "Mayank Mahajan",
@@ -30,6 +31,8 @@
     "@types/hpp": "^0.2.7",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20.19.43",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "@types/supertest": "^7.2.0",
     "supertest": "^7.2.2",
     "tsx": "^4.23.0",
@@ -41,6 +44,7 @@
     "@spark/shared": "workspace:*",
     "argon2": "^0.44.0",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^6.3.8",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
@@ -50,7 +54,11 @@
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
     "hpp": "^0.2.3",
+    "ioredis": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "resend": "^6.28.1",
     "zod": "^4.4.3"
   }
 }
