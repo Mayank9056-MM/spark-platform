@@ -16,7 +16,7 @@ import {
   SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { useAuth } from '@/features/auth';
-import { hasPermission } from '@/features/rbac';
+import { hasAnyPermission } from '@/features/rbac';
 
 /**
  * One shell, every role. Visibility is metadata-driven (nav-config.ts)
@@ -26,9 +26,13 @@ export function AppSidebar() {
   const { permissions } = useAuth();
   const pathname = usePathname();
 
-  const items = NAVIGATION.filter(
-    (item) => item.permission === undefined || hasPermission(permissions, item.permission),
-  );
+  const items = NAVIGATION.filter((item) => {
+    if (item.permission === undefined) {
+      return true;
+    }
+    const required = Array.isArray(item.permission) ? item.permission : [item.permission];
+    return hasAnyPermission(permissions, required);
+  });
 
   return (
     <Sidebar collapsible="icon">
