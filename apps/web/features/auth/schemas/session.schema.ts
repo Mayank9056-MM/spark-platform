@@ -38,5 +38,31 @@ export const loginResponseSchema = z.object({
   accessTokenExpiresAt: isoDateTime,
 });
 
+/** Mirrors `RoleSummaryDTO` (apps/api/.../rbac/roles/role.types.ts). */
+export const roleSummarySchema = z.object({
+  id: z.string(),
+  key: z.string(),
+  displayName: z.string(),
+});
+
+/**
+ * A catalog permission key is `resource:action` (see
+ * permission.constants.ts), but `CurrentUserDTO.permissions` is typed
+ * server-side as the broader `PermissionKey` union, not the narrower
+ * "catalog as of today" union. Validating against a fixed enum here
+ * would break the moment the backend ships a new permission this
+ * bundle hasn't been rebuilt against — a plain string is deliberate.
+ */
+export const permissionKeySchema = z.string();
+
+/** Mirrors `CurrentUserDTO` — the GET /auth/me response. */
+export const currentUserSchema = z.object({
+  user: userPublicSchema,
+  roles: z.array(roleSummarySchema),
+  permissions: z.array(permissionKeySchema),
+});
+
 export type UserPublic = z.infer<typeof userPublicSchema>;
 export type LoginResponse = z.infer<typeof loginResponseSchema>;
+export type RoleSummary = z.infer<typeof roleSummarySchema>;
+export type CurrentUser = z.infer<typeof currentUserSchema>;

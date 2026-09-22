@@ -4,7 +4,8 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "noEmit": true,
-    "composite": false
+    "composite": false,
+    "allowImportingTsExtensions": true
   },
   "include": ["vitest/**/*.ts"],
   "exclude": ["node_modules"]

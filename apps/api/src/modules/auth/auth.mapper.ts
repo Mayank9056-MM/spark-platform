@@ -1,6 +1,14 @@
 import type { Session, User } from '@spark/database';
 
-import type { LoginResponseDTO, SessionSummaryDTO, UserPublicDTO } from './auth.types.js';
+import type { PermissionKey } from '../rbac/index.js';
+import type { RoleSummaryDTO } from '../rbac/roles/role.types.js';
+
+import type {
+  CurrentUserDTO,
+  LoginResponseDTO,
+  SessionSummaryDTO,
+  UserPublicDTO,
+} from './auth.types.js';
 
 /**
  * Strips every internal/security-sensitive field off a User row before it
@@ -56,4 +64,21 @@ export function toSessionSummaryList(
   currentSessionId: string,
 ): SessionSummaryDTO[] {
   return sessions.map((session) => toSessionSummary(session, currentSessionId));
+}
+
+/**
+ * Pure composition — every value has already been resolved by the caller
+ * (auth.service.ts's getCurrentUser). No DB access, no RBAC decision here,
+ * exactly like toLoginResponse does for login.
+ */
+export function toCurrentUserResponse(
+  user: User,
+  roles: RoleSummaryDTO[],
+  permissions: PermissionKey[],
+): CurrentUserDTO {
+  return {
+    user: toPublicUser(user),
+    roles,
+    permissions,
+  };
 }

@@ -1,9 +1,9 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { TriangleAlertIcon } from 'lucide-react';
+import { EyeIcon, EyeOffIcon, TriangleAlertIcon } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { LOGIN_PATH } from '../constants';
@@ -15,7 +15,12 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupButton,
+  InputGroupInput,
+} from '@/components/ui/input-group';
 import { Spinner } from '@/components/ui/spinner';
 
 interface ActivateFormProps {
@@ -38,6 +43,7 @@ export function ActivateForm({ token }: ActivateFormProps) {
 
 function ActivatePasswordForm({ token }: { token: string }) {
   const activate = useActivateAccount();
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   const {
     register,
@@ -69,6 +75,7 @@ function ActivatePasswordForm({ token }: { token: string }) {
   }
 
   const isBusy = activate.isPending;
+  const passwordInputType = isPasswordVisible ? 'text' : 'password';
 
   const onSubmit = (values: ActivateFormValues) => {
     // confirmPassword is a client-side check only and is not sent.
@@ -109,14 +116,32 @@ function ActivatePasswordForm({ token }: { token: string }) {
 
             <Field data-invalid={Boolean(errors.password)}>
               <FieldLabel htmlFor="password">Password</FieldLabel>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="new-password"
-                aria-invalid={Boolean(errors.password)}
-                aria-describedby={errors.password ? 'password-error' : 'password-help'}
-                {...register('password')}
-              />
+              <InputGroup>
+                <InputGroupInput
+                  id="password"
+                  type={passwordInputType}
+                  autoComplete="new-password"
+                  aria-invalid={Boolean(errors.password)}
+                  aria-describedby={errors.password ? 'password-error' : 'password-help'}
+                  {...register('password')}
+                />
+                <InputGroupAddon align="inline-end">
+                  <InputGroupButton
+                    size="icon-xs"
+                    aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}
+                    aria-pressed={isPasswordVisible}
+                    onClick={() => {
+                      setIsPasswordVisible((visible) => !visible);
+                    }}
+                  >
+                    {isPasswordVisible ? (
+                      <EyeOffIcon aria-hidden="true" />
+                    ) : (
+                      <EyeIcon aria-hidden="true" />
+                    )}
+                  </InputGroupButton>
+                </InputGroupAddon>
+              </InputGroup>
               <FieldDescription id="password-help">
                 At least 10 characters, with a lowercase letter, an uppercase letter and a digit.
               </FieldDescription>
@@ -125,14 +150,16 @@ function ActivatePasswordForm({ token }: { token: string }) {
 
             <Field data-invalid={Boolean(errors.confirmPassword)}>
               <FieldLabel htmlFor="confirmPassword">Confirm password</FieldLabel>
-              <Input
-                id="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                aria-invalid={Boolean(errors.confirmPassword)}
-                aria-describedby={errors.confirmPassword ? 'confirm-password-error' : undefined}
-                {...register('confirmPassword')}
-              />
+              <InputGroup>
+                <InputGroupInput
+                  id="confirmPassword"
+                  type={passwordInputType}
+                  autoComplete="new-password"
+                  aria-invalid={Boolean(errors.confirmPassword)}
+                  aria-describedby={errors.confirmPassword ? 'confirm-password-error' : undefined}
+                  {...register('confirmPassword')}
+                />
+              </InputGroup>
               <FieldError id="confirm-password-error" errors={[errors.confirmPassword]} />
             </Field>
 

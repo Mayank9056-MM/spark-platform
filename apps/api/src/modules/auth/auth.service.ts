@@ -10,10 +10,20 @@ import { recordAudit, recordAuditTx } from '../audit/audit.service.js';
 import { AuditEntityType } from '../audit/audit.types.js';
 import { notificationService } from '../notifications/notification.service.js';
 import type { NotificationRecipient } from '../notifications/notification.types.js';
+import { roleAssignmentService, type PermissionKey } from '../rbac/index.js';
+import { permissionResolver } from '../rbac/permissions/permission-resolver.js';
+import { roleRepository } from '../rbac/roles/role.repository.js';
 
 import { AUTH_CONSTANTS } from './auth.constants.js';
+import { toCurrentUserResponse } from './auth.mapper.js';
 import { authRepository } from './auth.repository.js';
-import type { AuthTokens, LoginParams, LoginResult, RequestMetadata } from './auth.types.js';
+import type {
+  AuthTokens,
+  CurrentUserDTO,
+  LoginParams,
+  LoginResult,
+  RequestMetadata,
+} from './auth.types.js';
 
 function toRecipient(user: User): NotificationRecipient {
   return { userId: user.id, email: user.email, firstName: user.firstName };
@@ -76,6 +86,38 @@ export class AuthService {
     authLogger.info('User logged in', { userId: updatedUser.id, sessionId: session.id });
 
     return { user: updatedUser, sessionId: session.id, tokens };
+  }
+
+  /**
+   * Composes the same three layers authorization.service.ts composes for
+   * an ALLOW/DENY decision — just read out as data here instead of
+   * collapsed into a boolean. No new RBAC business logic: this method
+   * makes no authorization decision itself.
+   */
+  async getCurrentUser(userId: string): Promise<CurrentUserDTO> {
+    const user = await authRepository.findUserById(userId);
+    if (!user) {
+      // Token verified, but the user behind it is gone (e.g. deleted
+      // between token issuance and this request). Same "authentication
+      // is no longer valid" semantics as an expired/invalid token, not a
+      // 404 — nothing for the client to retry differently.
+      throw ApiError.unauthorized('User no longer exists', ErrorCode.UNAUTHENTICATED);
+    }
+
+    const assignments = await roleAssignmentService.getActiveAssignmentsForUser(userId);
+    const uniqueRoleIds = [...new Set(assignments.map((assignment) => assignment.roleId))];
+
+    // No bulk find-by-ids exists on roleRepository today, and a user's
+    // distinct active role count is always small — parallelized single-id
+    // lookups, not a blocking per-row round trip.
+    const roles = (await Promise.all(uniqueRoleIds.map((id) => roleRepository.findById(id))))
+      .filter((role): role is NonNullable<typeof role> => role !== null)
+      .map((role) => ({ id: role.id, key: role.key, displayName: role.displayName }));
+
+    const permissions = await permissionResolver.resolve({ roleIds: uniqueRoleIds });
+    const permissionKeys = permissions.map((permission) => permission.key as PermissionKey);
+
+    return toCurrentUserResponse(user, roles, permissionKeys);
   }
 
   /**

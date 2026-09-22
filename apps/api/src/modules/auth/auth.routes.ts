@@ -19,6 +19,8 @@ export const authRouter = Router();
 // ── Public — all rate-limited, these are the credential-stuffing surface ──
 authRouter.post('/login', authRateLimiter, validate(loginBodySchema), authController.login);
 
+authRouter.get('/me', requireAuth, authController.getCurrentUser);
+
 // No body validation — refresh token arrives via httpOnly cookie only.
 authRouter.post('/refresh', authController.refresh);
 
