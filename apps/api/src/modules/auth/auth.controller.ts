@@ -58,6 +58,12 @@ export const login = async (req: Request, res: Response) => {
   );
 };
 
+export const getCurrentUser = async (req: Request, res: Response) => {
+  // req.user is guaranteed by requireAuth on this route
+  const currentUser = await authService.getCurrentUser(req.user!.id);
+  ApiResponse.ok(res, currentUser);
+};
+
 export const refresh = async (req: Request, res: Response) => {
   const rawRefreshToken = requireRefreshTokenCookie(req);
   const tokens = await authService.refreshTokens(rawRefreshToken, extractRequestMetadata(req));
