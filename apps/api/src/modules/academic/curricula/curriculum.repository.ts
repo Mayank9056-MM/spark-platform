@@ -15,70 +15,113 @@ import type {
 } from './curriculum.types.js';
 
 /**
- * As with DepartmentRepository/ProgramRepository/RoleRepository, mutating
- * methods take an explicit Prisma transaction client rather than closing
- * over the module-level `prisma` singleton — so curriculum.service.ts can
- * wrap a CurriculumVersion mutation together with its audit-log write in
- * one `prisma.$transaction(...)`. Read-only methods use the singleton —
- * except `findByIdTx` below, which is deliberately transaction-scoped;
- * see its own doc comment.
+ * Mutating methods take an explicit Prisma transaction client so
+ * curriculum.service.ts can wrap a mutation together with its audit write
+ * in one `prisma.$transaction(...)`. Read-only methods use the singleton
+ * unless a `*Tx` variant exists for a read that must observe the
+ * transaction's own snapshot.
  */
 type Db = PrismaClient | Prisma.TransactionClient;
 
-/**
- * Raw persistence list result — deliberately NOT `ListCurriculumVersionsResult`
- * from curriculum.types.ts, which holds `CurriculumVersionDTO[]` for the
- * API boundary. This repository never produces DTOs; mapping
- * `CurriculumVersion[]` → `CurriculumVersionDTO[]` is curriculum.mapper.ts's
- * job, one layer up. Field name (`curriculumVersions`) matches
- * `ListCurriculumVersionsResult`'s own field name for consistency between
- * the persistence and API result shapes.
- */
 export interface CurriculumVersionListQueryResult {
   readonly curriculumVersions: CurriculumVersion[];
   readonly total: number;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// Deliberate, bounded selects (no whole-graph includes)
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Administrative structure read: CurriculumVersion -> Program ->
+ * Department, and Semesters -> {Subjects, ElectiveGroups}. Prisma resolves
+ * each relation level with one batched query (not one per row), so the
+ * total is a small constant number of queries regardless of how many
+ * semesters/subjects exist. SubjectComponent / offerings / enrollments are
+ * intentionally not selected.
+ */
+const curriculumStructureSelect = {
+  id: true,
+  label: true,
+  status: true,
+  createdAt: true,
+  updatedAt: true,
+  program: {
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      durationYears: true,
+      totalSemesters: true,
+      department: { select: { id: true, name: true, code: true } },
+    },
+  },
+  semesterCatalogs: {
+    orderBy: { number: 'asc' },
+    select: {
+      id: true,
+      number: true,
+      subjects: {
+        orderBy: { code: 'asc' },
+        select: { id: true, code: true, name: true, isElective: true, electiveGroupId: true },
+      },
+      electiveGroups: {
+        orderBy: { name: 'asc' },
+        select: { id: true, name: true, minSelect: true, maxSelect: true },
+      },
+    },
+  },
+} satisfies Prisma.CurriculumVersionSelect;
+
+export type CurriculumStructureRecord = Prisma.CurriculumVersionGetPayload<{
+  select: typeof curriculumStructureSelect;
+}>;
+
+/**
+ * Only what activation-readiness evaluation needs (see
+ * curriculum.readiness.ts). `subject.electiveGroup.semesterCatalogId` lets
+ * the evaluator detect a subject pointing at an elective group that
+ * belongs to a different semester.
+ */
+const activationSnapshotSelect = {
+  id: true,
+  status: true,
+  program: { select: { id: true, totalSemesters: true } },
+  semesterCatalogs: {
+    orderBy: { number: 'asc' },
+    select: {
+      id: true,
+      number: true,
+      subjects: {
+        select: {
+          id: true,
+          code: true,
+          electiveGroupId: true,
+          electiveGroup: { select: { semesterCatalogId: true } },
+        },
+      },
+      electiveGroups: { select: { id: true, name: true, minSelect: true, maxSelect: true } },
+    },
+  },
+} satisfies Prisma.CurriculumVersionSelect;
+
+export type CurriculumActivationSnapshot = Prisma.CurriculumVersionGetPayload<{
+  select: typeof activationSnapshotSelect;
+}>;
+
 /**
  * The only file allowed to call `prisma.curriculumVersion.*` directly.
- * Persistence access only: no authorization decisions, no DTO mapping,
- * no audit orchestration, no business rules — in particular, no status
- * transition validation (whether DRAFT may become ACTIVE, whether
- * RETIRED may be edited, whether only one ACTIVE version may exist per
- * Program) and no Program existence checking. Those belong to
- * curriculum.service.ts.
- *
- * ProgramRepository/DepartmentRepository are not imported here:
- * `CurriculumVersion.programId` is persisted as a plain column, with
- * Program existence and referential integrity left to the database
- * foreign key, not a cross-repository call — the same boundary
- * ProgramRepository already keeps with respect to Department.
- *
- * CurriculumVersion has no `deletedAt`/status-based-deletion field in
- * schema.prisma, so — same as DepartmentRepository/ProgramRepository —
- * no soft-delete filtering appears anywhere below. `status`
- * (DRAFT/ACTIVE/RETIRED) is a real persisted lifecycle field, but this
- * repository only ever writes the value it's given; it never inspects
- * or reasons about the current value to decide what's allowed next.
+ * Persistence only: no authorization, no DTO mapping, no audit, and no
+ * business rules. In particular it never decides whether a transition is
+ * legal — it only offers atomic, status-conditional write primitives
+ * (`transitionStatus`, `lockDraftTx`, `deleteIfDraft`) that the service
+ * composes.
  */
 export class CurriculumVersionRepository {
   /**
-   * `label` is written exactly as submitted — no case conversion or
-   * trimming happens here; that's validation's job
-   * (curriculum.validation.ts). Uniqueness of `(programId, label)` is
-   * enforced by the database's `@@unique([programId, label])`
-   * constraint, not by this method: a concurrent duplicate `create()`
-   * call is rejected by Postgres (P2002), mapped to a 409 by
-   * prisma-error.mapper.ts. Any pre-check the service performs via
-   * `existsByProgramAndLabel` is only for a friendlier error message,
-   * never the actual concurrency guarantee. `programId` is persisted as
-   * given — whether that Program actually exists is guaranteed by the
-   * database foreign key (P2003 on violation), not verified here.
-   *
-   * `status` is included only when supplied — mirroring
-   * RoleAssignmentRepository.create's identical treatment of its own
-   * optional `validFrom` — so an omitted `status` leaves Prisma's
-   * `@default(DRAFT)` to apply, rather than writing `status: undefined`.
+   * `status` is never written here — Prisma's `@default(DRAFT)` always
+   * applies. `(programId, label)` uniqueness is guaranteed by the database
+   * (P2002 -> 409); `existsByProgramAndLabel` is only a friendlier pre-check.
    */
   async create(tx: Db, input: CreateCurriculumVersionInput): Promise<CurriculumVersion> {
     return tx.curriculumVersion.create({
@@ -89,94 +132,47 @@ export class CurriculumVersionRepository {
     });
   }
 
-  /**
-   * Uses `findUnique()`, not `findFirst()` — matching ProgramRepository's
-   * reasoning over DepartmentRepository's: `id` is a genuinely unique
-   * column with no additional filter to combine and no soft-delete flag
-   * to exclude, so `findUnique()` is the technically correct choice
-   * here.
-   */
   async findById(id: CurriculumVersionId): Promise<CurriculumVersion | null> {
-    return prisma.curriculumVersion.findUnique({
-      where: { id },
-    });
+    return prisma.curriculumVersion.findUnique({ where: { id } });
   }
 
   /**
-   * Transaction-scoped equivalent of `findById`. Exists specifically so
-   * curriculum.service.ts can read a CurriculumVersion's pre-mutation
-   * state and then update/delete it within the SAME
-   * `prisma.$transaction(...)` — reading outside the transaction first
-   * leaves a window where a concurrent transaction could change the row
-   * between the read and the write, producing an audit record whose
-   * `oldValue` no longer matches what was actually overwritten. Mirrors
-   * DepartmentRepository.findByIdTx / ProgramRepository.findByIdTx
-   * exactly; uses `findUnique()` to match this repository's own
-   * `findById` above.
-   *
-   * This is a plain read inside a transaction, not `SELECT ... FOR
-   * UPDATE` — it does not provide row-level locking. If two concurrent
-   * transactions both read the same pre-mutation state before either
-   * commits, this method alone does not prevent that; no such locking
-   * mechanism exists elsewhere in this codebase for Department/Program
-   * either, so none is introduced here.
+   * Transaction-scoped read, so the service's existence/status checks, the
+   * audit `oldValue`, and the write all observe one snapshot. A plain read
+   * — it does not lock the row (see `lockDraftTx` for that).
    */
   async findByIdTx(tx: Db, id: CurriculumVersionId): Promise<CurriculumVersion | null> {
-    return tx.curriculumVersion.findUnique({
-      where: { id },
-    });
+    return tx.curriculumVersion.findUnique({ where: { id } });
   }
 
-  /**
-   * `(programId, label)` is the schema's real composite unique
-   * constraint (`@@unique([programId, label])`) — this uses Prisma's
-   * generated compound selector for it, the same `findUnique()`-on-a-
-   * real-unique-constraint reasoning as `findByCode` in
-   * DepartmentRepository/ProgramRepository, extended to a composite key.
-   */
   async findByProgramAndLabel(
     programId: ProgramId,
     label: string,
   ): Promise<CurriculumVersion | null> {
     return prisma.curriculumVersion.findUnique({
-      where: {
-        programId_label: { programId, label },
-      },
+      where: { programId_label: { programId, label } },
     });
   }
 
-  /**
-   * Best-effort fast-path check only — see the file-level note on
-   * `create()`. The database's `@@unique([programId, label])` constraint
-   * remains the actual concurrency guarantee; this method exists purely
-   * so the service can return a friendlier pre-check error before
-   * attempting the write.
-   */
-  async existsByProgramAndLabel(programId: ProgramId, label: string): Promise<boolean> {
-    const count = await prisma.curriculumVersion.count({
-      where: { programId, label },
+  async findByProgramAndLabelTx(
+    tx: Db,
+    programId: ProgramId,
+    label: string,
+  ): Promise<CurriculumVersion | null> {
+    return tx.curriculumVersion.findUnique({
+      where: { programId_label: { programId, label } },
     });
+  }
+
+  async existsByProgramAndLabel(programId: ProgramId, label: string): Promise<boolean> {
+    const count = await prisma.curriculumVersion.count({ where: { programId, label } });
     return count > 0;
   }
 
   /**
-   * Only the fields `UpdateCurriculumVersionInput` exposes are ever
-   * written: `label` and `status`. `programId` has no corresponding
-   * branch here at all, so there is no code path through which a caller
-   * could reassign a CurriculumVersion's Program even by mistake (see
-   * curriculum.types.ts's `UpdateCurriculumVersionInput` doc comment —
-   * `StudentEnrollment`/`Admission` rows already reference a
-   * CurriculumVersion by id, and reassigning its Program afterward would
-   * silently change what Program owns that history). Conditional
-   * spreads avoid writing `undefined` for omitted fields, consistent
-   * with the project's `exactOptionalPropertyTypes` convention and
-   * DepartmentRepository/ProgramRepository's identical pattern.
-   *
-   * `status` is written exactly as given, with no legality check on the
-   * transition — that state-machine decision belongs to
-   * curriculum.service.ts, not this repository. Plain `id` selector: if
-   * `id` doesn't match an existing row, Prisma throws P2025 — mapped to
-   * a clean 404 by the centralized Prisma error mapper.
+   * Writes `label` only. `programId` has no branch here, so a version can
+   * never be reassigned to another Program. Callers must have already
+   * established the version is DRAFT (service + `lockDraftTx`).
    */
   async update(
     tx: Db,
@@ -192,68 +188,82 @@ export class CurriculumVersionRepository {
   }
 
   /**
-   * Narrowly-scoped write primitive for the lifecycle transition only —
-   * mirrors AcademicYearRepository.updateActiveState's identical
-   * reasoning: activation/retirement is a state-machine transition, not
-   * a field-level PATCH, so it is deliberately NOT folded into
-   * update()/UpdateCurriculumVersionInput. Only
-   * curriculum.service.ts's activateCurriculumVersion/
-   * retireCurriculumVersion may call this; transition legality
-   * (DRAFT->ACTIVE, ACTIVE->RETIRED only) is validated by the caller
-   * before this is ever reached — this method writes unconditionally.
+   * Atomic, status-conditional transition — same shape as
+   * AdmissionRepository.cancel / StudentEnrollmentRepository.cancel.
+   * `updateMany` is used because `update`'s `where` cannot express "and
+   * status is still `from`". Under READ COMMITTED a losing concurrent
+   * caller blocks on the winner's row lock, re-evaluates the WHERE against
+   * the committed row, matches zero rows, and gets `null` — so exactly one
+   * of two racing transitions succeeds.
+   *
+   * Legality of `from -> to` is the service's decision, not this method's.
    */
-  async updateStatus(
+  async transitionStatus(
     tx: Db,
     id: CurriculumVersionId,
-    status: CurriculumStatus,
-  ): Promise<CurriculumVersion> {
-    return tx.curriculumVersion.update({
-      where: { id },
-      data: { status },
+    from: CurriculumStatus,
+    to: CurriculumStatus,
+  ): Promise<CurriculumVersion | null> {
+    const { count } = await tx.curriculumVersion.updateMany({
+      where: { id, status: from },
+      data: { status: to },
     });
+    if (count === 0) {
+      return null;
+    }
+    return tx.curriculumVersion.findUniqueOrThrow({ where: { id } });
   }
 
   /**
-   * Hard delete — CurriculumVersion has no `deletedAt`/status-based
-   * soft-delete field to use instead, and none is invented here (that's
-   * a schema decision, out of scope for this repository).
-   * `SemesterCatalog.curriculumVersionId`, `StudentEnrollment.curriculumVersionId`,
-   * and `Admission.initialCurriculumId` are all required foreign keys
-   * into CurriculumVersion with no explicit cascade behavior declared in
-   * schema.prisma, so Postgres will reject deleting a CurriculumVersion
-   * that any of those rows still reference (P2003, mapped to 400 by
-   * prisma-error.mapper.ts) rather than silently cascading. This
-   * repository does not pre-check for those child rows, delete them, or
-   * cascade in application code — the database is the single source of
-   * truth for that integrity guarantee, matching
-   * DepartmentRepository.delete / ProgramRepository.delete exactly.
+   * Takes a row lock on the version IFF it is still DRAFT, held until the
+   * surrounding transaction ends. Returns whether the version was DRAFT.
+   *
+   * Purpose: structure mutations (semester/subject/elective writes) call
+   * this, and activation flips the status with the same kind of conditional
+   * UPDATE, so the two serialize on this row. Without it, a subject could
+   * be deleted by a transaction that saw DRAFT and commit AFTER activation's
+   * readiness check, leaving an ACTIVE version that no longer satisfies
+   * readiness. The write bumps `updatedAt`, which is accurate: the
+   * version's structure is about to change.
    */
-  async delete(tx: Db, id: CurriculumVersionId): Promise<CurriculumVersion> {
-    return tx.curriculumVersion.delete({
-      where: { id },
+  async lockDraftTx(tx: Db, id: CurriculumVersionId): Promise<boolean> {
+    const { count } = await tx.curriculumVersion.updateMany({
+      where: { id, status: 'DRAFT' },
+      data: { updatedAt: new Date() },
     });
+    return count > 0;
   }
 
   /**
-   * Same count+findMany-in-parallel shape as every sibling repository's
-   * `findMany`, using the identical `where` object for both calls so
-   * `total` always matches the filtered result set, never the whole
-   * table.
-   *
-   * `search` matches only against `label` via case-insensitive
-   * `contains` — CurriculumVersion has no `code`/`name` field to also
-   * search, unlike Department/Program's two-field OR. `programId` and
-   * `status` are direct equality filters on indexed columns
-   * (`@@index([programId, status])`); all three are combined as sibling
-   * keys on one `where` object, so Prisma ANDs them together — matching
-   * ProgramRepository.findMany's identical multi-filter combination
-   * pattern, never an OR across independent filters.
-   *
-   * `orderBy: { [options.sortBy]: options.sortOrder }` mirrors every
-   * sibling repository's identical dynamic-key pattern — safe here for
-   * the same reason it's safe there: `options.sortBy` is already
-   * whitelisted to the `'label' | 'status' | 'createdAt'` literal union
-   * by curriculum.validation.ts before it ever reaches this method.
+   * Conditional hard delete: removes the row only while it is still DRAFT.
+   * Returns false if nothing was deleted (missing, or no longer DRAFT).
+   * FK violations from still-referencing rows surface as P2003, which the
+   * service translates into a domain conflict.
+   */
+  async deleteIfDraft(tx: Db, id: CurriculumVersionId): Promise<boolean> {
+    const { count } = await tx.curriculumVersion.deleteMany({
+      where: { id, status: 'DRAFT' },
+    });
+    return count > 0;
+  }
+
+  /**
+   * Reports whether anything still references this version: its semesters,
+   * admissions, or student enrollments. A fact only — the service decides.
+   */
+  async hasDependentRecords(tx: Db, id: CurriculumVersionId): Promise<boolean> {
+    const [semesterCount, admissionCount, enrollmentCount] = await Promise.all([
+      tx.semesterCatalog.count({ where: { curriculumVersionId: id } }),
+      tx.admission.count({ where: { initialCurriculumId: id } }),
+      tx.studentEnrollment.count({ where: { curriculumVersionId: id } }),
+    ]);
+    return semesterCount > 0 || admissionCount > 0 || enrollmentCount > 0;
+  }
+
+  /**
+   * Same count+findMany-in-parallel shape as every sibling. `search`
+   * matches `label`; filters are ANDed. `sortBy` is whitelisted by
+   * curriculum.validation.ts before reaching here.
    */
   async findMany(
     filters: ListCurriculumVersionsFilters,
@@ -280,25 +290,22 @@ export class CurriculumVersionRepository {
     return { curriculumVersions, total };
   }
 
-  /**
-   * Transaction-scoped equivalent of `findByProgramAndLabel`. Added so
-   * curriculum.service.ts's updateCurriculumVersion can evaluate
-   * `(programId, label)` uniqueness against the SAME transaction it uses
-   * to read the pre-mutation row (`findByIdTx`) and perform the update —
-   * mirroring `findByIdTx`'s own relationship to `findById` above. Like
-   * `findByProgramAndLabel`, this is a best-effort pre-check only; the
-   * database's `@@unique([programId, label])` constraint remains the
-   * actual concurrency guarantee.
-   */
-  async findByProgramAndLabelTx(
+  /** Read-only administrative structure for GET /:id/structure. */
+  async findStructureById(id: CurriculumVersionId): Promise<CurriculumStructureRecord | null> {
+    return prisma.curriculumVersion.findUnique({
+      where: { id },
+      select: curriculumStructureSelect,
+    });
+  }
+
+  /** Read inside the activation transaction, after the status flip took the row lock. */
+  async findActivationSnapshotTx(
     tx: Db,
-    programId: ProgramId,
-    label: string,
-  ): Promise<CurriculumVersion | null> {
+    id: CurriculumVersionId,
+  ): Promise<CurriculumActivationSnapshot | null> {
     return tx.curriculumVersion.findUnique({
-      where: {
-        programId_label: { programId, label },
-      },
+      where: { id },
+      select: activationSnapshotSelect,
     });
   }
 }
