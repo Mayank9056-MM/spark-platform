@@ -146,3 +146,9 @@ export const deleteCurriculumVersion = async (req: Request, res: Response): Prom
   await curriculumVersionService.deleteCurriculumVersion(actorUserId, params.id);
   ApiResponse.ok(res, null, 'Curriculum version deleted');
 };
+
+export const getCurriculumVersionStructure = async (req: Request, res: Response): Promise<void> => {
+  const params = req.valid?.params as CurriculumVersionIdParams;
+  const structure = await curriculumVersionService.getCurriculumVersionStructure(params.id);
+  ApiResponse.ok(res, structure);
+};

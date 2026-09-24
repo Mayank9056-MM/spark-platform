@@ -4,15 +4,23 @@ import type { Prisma } from '@spark/database/client';
 
 import { ApiError } from '../../../common/errors/ApiError.js';
 import { ErrorCode } from '../../../common/errors/ErrorCodes.js';
+import { isForeignKeyViolation } from '../../../common/errors/prisma-error.mapper.js';
 import { curriculumLogger } from '../../../lib/logger.js';
 import { prisma } from '../../../lib/prisma.js';
 import { recordAuditTx } from '../../audit/audit.service.js';
+import { AuditEntityType } from '../../audit/audit.types.js';
 import { programRepository } from '../programs/program.repository.js';
 
-import { toCurriculumVersionDTO, toCurriculumVersionDTOList } from './curriculum.mapper.js';
+import {
+  toCurriculumStructureDTO,
+  toCurriculumVersionDTO,
+  toCurriculumVersionDTOList,
+} from './curriculum.mapper.js';
+import { evaluateActivationReadiness, formatReadinessFailure } from './curriculum.readiness.js';
 import { curriculumVersionRepository } from './curriculum.repository.js';
 import type {
   CreateCurriculumVersionInput,
+  CurriculumStructureDTO,
   CurriculumVersionDTO,
   CurriculumVersionId,
   ListCurriculumVersionsFilters,
@@ -21,22 +29,28 @@ import type {
   UpdateCurriculumVersionInput,
 } from './curriculum.types.js';
 
-import { AuditEntityType } from '@/modules/audit/audit.types.js';
-
 /**
- * CurriculumVersion lifecycle (hardening pass):
+ * CurriculumVersion lifecycle:
  *
  *   DRAFT --activate--> ACTIVE --retire--> RETIRED
  *
- * One-way only. DRAFT->RETIRED, ACTIVE->DRAFT, RETIRED->(anything), and
- * repeating the current state are all illegal. `activateCurriculumVersion`
- * and `retireCurriculumVersion` are the ONLY methods that may change
- * `status` — `updateCurriculumVersion` (generic PATCH) additionally
- * refuses to run at all once the version has left DRAFT, since `label`
- * (its only remaining mutable field) must not be freely editable on an
- * ACTIVE or RETIRED version. `UpdateCurriculumVersionInput` has no
- * `status` field, so there is no field-level path into this bypass
- * either — this is enforced at both the type layer and here.
+ * One-way. Invalid transitions are 409 CURRICULUM_VERSION_INVALID_TRANSITION.
+ * Activation additionally requires structural readiness (see
+ * curriculum.readiness.ts); a readiness failure is 422
+ * CURRICULUM_VERSION_NOT_READY, deliberately distinct from an illegal
+ * transition.
+ *
+ * Only DRAFT versions are editable or deletable. ACTIVE and RETIRED versions
+ * are permanent institutional records: admissions/enrollments that reference
+ * them stay valid, and structure changes require a new version. Several
+ * ACTIVE versions per program may coexist (overlapping schemes are allowed).
+ *
+ * Concurrency: every status change is an atomic conditional UPDATE
+ * (`transitionStatus`), so of two racing transitions exactly one succeeds.
+ * Structure mutations elsewhere take a row lock on the DRAFT version
+ * (curriculum.guard.ts); because activation flips the status FIRST and only
+ * then reads the structure, it holds that same lock while validating, and
+ * no structure edit can slip in between the readiness check and commit.
  */
 export class CurriculumVersionService {
   async createCurriculumVersion(
@@ -94,6 +108,18 @@ export class CurriculumVersionService {
     return toCurriculumVersionDTO(curriculumVersion);
   }
 
+  /**
+   * Administrative structure read. Not audited (routine read). Bounded
+   * select via the repository — no whole-graph include, no per-row queries.
+   */
+  async getCurriculumVersionStructure(id: CurriculumVersionId): Promise<CurriculumStructureDTO> {
+    const record = await curriculumVersionRepository.findStructureById(id);
+    if (!record) {
+      throw ApiError.notFound('Curriculum version not found', ErrorCode.RECORD_NOT_FOUND);
+    }
+    return toCurriculumStructureDTO(record);
+  }
+
   async listCurriculumVersions(
     filters: ListCurriculumVersionsFilters,
     options: ListCurriculumVersionsOptions,
@@ -106,12 +132,9 @@ export class CurriculumVersionService {
   }
 
   /**
-   * Updates `label` only (see UpdateCurriculumVersionInput's own note).
-   * Refuses to run at all once the version has left DRAFT — this is
-   * the "generic update cannot bypass the lifecycle" guard the hardening
-   * task requires. Existence check, status check, `oldValue` snapshot,
-   * and the update all read the SAME transactionally-consistent row via
-   * `findByIdTx`, matching every sibling service's identical reasoning.
+   * Updates `label` only, and only while DRAFT. The DRAFT check is repeated
+   * as a conditional row lock so a concurrent activation cannot commit
+   * between the status read and the write.
    */
   async updateCurriculumVersion(
     actorUserId: string,
@@ -125,6 +148,14 @@ export class CurriculumVersionService {
       }
 
       if (existing.status !== 'DRAFT') {
+        throw ApiError.conflict(
+          'Only a draft curriculum version can be edited',
+          ErrorCode.CURRICULUM_VERSION_INVALID_TRANSITION,
+        );
+      }
+
+      const locked = await curriculumVersionRepository.lockDraftTx(tx, id);
+      if (!locked) {
         throw ApiError.conflict(
           'Only a draft curriculum version can be edited',
           ErrorCode.CURRICULUM_VERSION_INVALID_TRANSITION,
@@ -167,6 +198,19 @@ export class CurriculumVersionService {
     return toCurriculumVersionDTO(updated);
   }
 
+  /**
+   * Delete policy:
+   *   DRAFT   -> deletable only if nothing references it (semesters,
+   *              admissions, enrollments) -> else 409 HAS_REFERENCES
+   *   ACTIVE  -> 409 INVALID_TRANSITION (retire it instead)
+   *   RETIRED -> 409 INVALID_TRANSITION (permanent historical record)
+   *
+   * The lifecycle rule is enforced explicitly, not left to Postgres. The FK
+   * (Restrict) remains the final backstop for a race: a P2003 from the
+   * DELETE itself is translated here into the same domain conflict rather
+   * than leaking the generic "references a record that does not exist"
+   * mapping (which describes an insert/update, not a delete).
+   */
   async deleteCurriculumVersion(actorUserId: string, id: CurriculumVersionId): Promise<void> {
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await curriculumVersionRepository.findByIdTx(tx, id);
@@ -174,7 +218,48 @@ export class CurriculumVersionService {
         throw ApiError.notFound('Curriculum version not found', ErrorCode.RECORD_NOT_FOUND);
       }
 
-      await curriculumVersionRepository.delete(tx, id);
+      if (existing.status === 'ACTIVE') {
+        throw ApiError.conflict(
+          'An active curriculum version cannot be deleted. Retire it instead.',
+          ErrorCode.CURRICULUM_VERSION_INVALID_TRANSITION,
+        );
+      }
+      if (existing.status === 'RETIRED') {
+        throw ApiError.conflict(
+          'A retired curriculum version is a permanent historical record and cannot be deleted',
+          ErrorCode.CURRICULUM_VERSION_INVALID_TRANSITION,
+        );
+      }
+
+      const referenced = await curriculumVersionRepository.hasDependentRecords(tx, id);
+      if (referenced) {
+        throw ApiError.conflict(
+          'This curriculum version cannot be deleted because other records still reference it ' +
+            '(semesters, admissions, or student enrollments)',
+          ErrorCode.CURRICULUM_VERSION_HAS_REFERENCES,
+        );
+      }
+
+      let deleted: boolean;
+      try {
+        deleted = await curriculumVersionRepository.deleteIfDraft(tx, id);
+      } catch (error) {
+        if (isForeignKeyViolation(error)) {
+          throw ApiError.conflict(
+            'This curriculum version cannot be deleted because another record still references it',
+            ErrorCode.CURRICULUM_VERSION_HAS_REFERENCES,
+          );
+        }
+        throw error;
+      }
+
+      if (!deleted) {
+        // Lost a race: no longer DRAFT (activated) by the time of the DELETE.
+        throw ApiError.conflict(
+          'Only a draft curriculum version can be deleted',
+          ErrorCode.CURRICULUM_VERSION_INVALID_TRANSITION,
+        );
+      }
 
       await recordAuditTx(tx, {
         actorUserId,
@@ -195,10 +280,18 @@ export class CurriculumVersionService {
   }
 
   /**
-   * DRAFT -> ACTIVE. Rejects any other current status. Mutation + audit
-   * commit atomically via `updateStatus` + `recordAuditTx` in one
-   * transaction, matching AcademicYearService.activateAcademicYear's
-   * identical shape for its own single-row state transition.
+   * DRAFT -> ACTIVE, gated by structural readiness.
+   *
+   * Order is deliberate:
+   *   1. read + fast status check (clear 409 for the common mistake)
+   *   2. atomic conditional flip DRAFT -> ACTIVE. This takes the row lock;
+   *      a losing concurrent activation gets null -> 409.
+   *   3. read the structure snapshot and evaluate readiness. Because the
+   *      lock is already held, structure edits (which lock the same row
+   *      while DRAFT) cannot interleave.
+   *   4. readiness failure -> throw 422; the transaction rolls back and the
+   *      version remains DRAFT. Nothing is audited.
+   *   5. audit in the same transaction.
    */
   async activateCurriculumVersion(
     actorUserId: string,
@@ -216,7 +309,26 @@ export class CurriculumVersionService {
         );
       }
 
-      const result = await curriculumVersionRepository.updateStatus(tx, id, 'ACTIVE');
+      const result = await curriculumVersionRepository.transitionStatus(tx, id, 'DRAFT', 'ACTIVE');
+      if (!result) {
+        throw ApiError.conflict(
+          'Only a draft curriculum version can be activated',
+          ErrorCode.CURRICULUM_VERSION_INVALID_TRANSITION,
+        );
+      }
+
+      const snapshot = await curriculumVersionRepository.findActivationSnapshotTx(tx, id);
+      if (!snapshot) {
+        throw ApiError.notFound('Curriculum version not found', ErrorCode.RECORD_NOT_FOUND);
+      }
+
+      const violations = evaluateActivationReadiness(snapshot);
+      if (violations.length > 0) {
+        throw ApiError.unprocessable(
+          formatReadinessFailure(violations),
+          ErrorCode.CURRICULUM_VERSION_NOT_READY,
+        );
+      }
 
       await recordAuditTx(tx, {
         actorUserId,
@@ -238,7 +350,10 @@ export class CurriculumVersionService {
     return toCurriculumVersionDTO(activated);
   }
 
-  /** ACTIVE -> RETIRED. Rejects any other current status. Same shape as activateCurriculumVersion. */
+  /**
+   * ACTIVE -> RETIRED. Existing admissions and enrollments that reference the
+   * version are untouched and remain valid; only NEW admissions are blocked.
+   */
   async retireCurriculumVersion(
     actorUserId: string,
     id: CurriculumVersionId,
@@ -255,7 +370,18 @@ export class CurriculumVersionService {
         );
       }
 
-      const result = await curriculumVersionRepository.updateStatus(tx, id, 'RETIRED');
+      const result = await curriculumVersionRepository.transitionStatus(
+        tx,
+        id,
+        'ACTIVE',
+        'RETIRED',
+      );
+      if (!result) {
+        throw ApiError.conflict(
+          'Only an active curriculum version can be retired',
+          ErrorCode.CURRICULUM_VERSION_INVALID_TRANSITION,
+        );
+      }
 
       await recordAuditTx(tx, {
         actorUserId,

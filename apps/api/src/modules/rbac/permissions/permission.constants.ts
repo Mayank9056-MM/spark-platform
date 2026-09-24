@@ -355,6 +355,30 @@ export const PERMISSIONS = Object.freeze({
     'Cancel Admission',
     'Allows cancelling a confirmed admission. Cancellation is permanent and cannot be reversed.',
   ),
+  STUDENT_CREATE: definePermission(
+    'student',
+    'create',
+    'Create Student Enrollment',
+    'Allows creating a student enrollment and allocating an institutional roll number.',
+  ),
+  STUDENT_READ: definePermission(
+    'student',
+    'read',
+    'Read Student Enrollment',
+    'Allows viewing student enrollment records and academic profiles.',
+  ),
+  STUDENT_UPDATE: definePermission(
+    'student',
+    'update',
+    'Update Student Enrollment',
+    'Allows updating a student roll number or processing student withdrawal.',
+  ),
+  STUDENT_CANCEL: definePermission(
+    'student',
+    'cancel',
+    'Cancel Student Enrollment',
+    'Allows cancelling an active student enrollment.',
+  ),
   PROMOTION_CREATE: definePermission(
     'promotion',
     'create',
