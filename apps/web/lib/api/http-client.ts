@@ -6,7 +6,7 @@ import { expireSession } from '../auth/session-expiry';
 
 import { API_ERROR_CODE, ApiClientError } from './api-error';
 import { createAxiosInstance } from './create-axios';
-import { parseSuccessEnvelope } from './envelope';
+import { type PaginatedResult, parsePaginatedEnvelope, parseSuccessEnvelope } from './envelope';
 import { toApiClientError } from './normalize-error';
 
 /**
@@ -71,6 +71,19 @@ export interface ApiRequestOptions {
   timeoutMs?: number;
   /** Allow refresh-and-replay on TOKEN_EXPIRED. Defaults to true. The browser always attaches cookies. */
   authenticated?: boolean;
+  /** Optional custom headers. */
+  headers?: Record<string, string>;
+}
+
+function normalizeRequestBody(body: unknown): unknown {
+  if (typeof body === 'string') {
+    try {
+      return JSON.parse(body);
+    } catch {
+      return body;
+    }
+  }
+  return body;
 }
 
 /**
@@ -89,16 +102,49 @@ export async function apiRequest<TSchema extends z.ZodType>(
   schema: TSchema,
   options: ApiRequestOptions = {},
 ): Promise<z.output<TSchema>> {
-  const { method = 'GET', body, signal, timeoutMs, authenticated = true } = options;
+  const { method = 'GET', body, signal, timeoutMs, authenticated = true, headers } = options;
+  const requestData = normalizeRequestBody(body);
 
   const response = await client.request<unknown>({
     url: path,
     method,
     skipAuth: !authenticated,
-    ...(body !== undefined && { data: body }),
+    headers: {
+      ...(requestData !== undefined && { 'Content-Type': 'application/json' }),
+      ...headers,
+    },
+    ...(requestData !== undefined && { data: requestData }),
     ...(signal !== undefined && { signal }),
     ...(timeoutMs !== undefined && { timeout: timeoutMs }),
   });
 
   return parseSuccessEnvelope(response.data, schema, response.status);
+}
+
+/**
+ * Performs a paginated GET request against the SPARK API and returns `{ items: T[], pagination: PaginationMeta }`,
+ * with each item validated against `itemSchema`.
+ */
+export async function apiPaginatedRequest<TSchema extends z.ZodType>(
+  path: string,
+  itemSchema: TSchema,
+  options: ApiRequestOptions = {},
+): Promise<PaginatedResult<z.output<TSchema>>> {
+  const { method = 'GET', body, signal, timeoutMs, authenticated = true, headers } = options;
+  const requestData = normalizeRequestBody(body);
+
+  const response = await client.request<unknown>({
+    url: path,
+    method,
+    skipAuth: !authenticated,
+    headers: {
+      ...(requestData !== undefined && { 'Content-Type': 'application/json' }),
+      ...headers,
+    },
+    ...(requestData !== undefined && { data: requestData }),
+    ...(signal !== undefined && { signal }),
+    ...(timeoutMs !== undefined && { timeout: timeoutMs }),
+  });
+
+  return parsePaginatedEnvelope(response.data, itemSchema, response.status);
 }
