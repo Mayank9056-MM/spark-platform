@@ -79,6 +79,13 @@ curriculumRouter.get(
 );
 
 curriculumRouter.get(
+  '/:id/structure',
+  authorize('curriculumVersion', 'read'),
+  validate(curriculumVersionIdParamsSchema, 'params'),
+  curriculumController.getCurriculumVersionStructure,
+);
+
+curriculumRouter.get(
   '/:id',
   authorize('curriculumVersion', 'read'),
   validate(curriculumVersionIdParamsSchema, 'params'),
