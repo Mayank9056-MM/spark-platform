@@ -2,7 +2,8 @@
 
 import type { CurriculumVersion } from '@spark/database/client';
 
-import type { CurriculumVersionDTO } from './curriculum.types.js';
+import type { CurriculumStructureRecord } from './curriculum.repository.js';
+import type { CurriculumStructureDTO, CurriculumVersionDTO } from './curriculum.types.js';
 
 /**
  * Persistence → DTO boundary for the CurriculumVersion domain. This must
@@ -49,4 +50,25 @@ export function toCurriculumVersionDTOList(
   curriculumVersions: readonly CurriculumVersion[],
 ): CurriculumVersionDTO[] {
   return curriculumVersions.map(toCurriculumVersionDTO);
+}
+
+export function toCurriculumStructureDTO(
+  record: CurriculumStructureRecord,
+): CurriculumStructureDTO {
+  const { department, ...program } = record.program;
+  return {
+    id: record.id,
+    label: record.label,
+    status: record.status,
+    createdAt: record.createdAt.toISOString(),
+    updatedAt: record.updatedAt.toISOString(),
+    program,
+    department,
+    semesters: record.semesterCatalogs.map((semester) => ({
+      id: semester.id,
+      number: semester.number,
+      subjects: semester.subjects.map((subject) => ({ ...subject })),
+      electiveGroups: semester.electiveGroups.map((group) => ({ ...group })),
+    })),
+  };
 }
