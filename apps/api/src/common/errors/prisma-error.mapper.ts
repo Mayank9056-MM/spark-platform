@@ -98,3 +98,8 @@ function extractTargetFields(meta: unknown): string {
   }
   return 'field';
 }
+
+/** True for a Prisma foreign-key violation (P2003). Lets a service translate it into a domain conflict. */
+export function isForeignKeyViolation(err: unknown): boolean {
+  return isPrismaKnownRequestError(err) && err.code === 'P2003';
+}
