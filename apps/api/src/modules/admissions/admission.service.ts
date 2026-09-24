@@ -28,84 +28,51 @@ import type {
 /**
  * Business-logic layer for the Admission domain.
  *
- * Admission is a permanent historical record: CONFIRMED -> CANCELLED is
- * the only transition, cancellation is irreversible, and there is no
- * delete operation at any layer (service, repository, controller, or
- * route). Generic update() only ever touches admissionDate/quota
- * (UpdateAdmissionInput has no `status` key) and is refused entirely once
- * an admission is CANCELLED — see updateAdmission.
+ * Admission is a permanent historical record: CONFIRMED -> CANCELLED is the
+ * only transition, cancellation is irreversible, and there is no delete at
+ * any layer. Generic update() only touches admissionDate/quota and is
+ * refused once CANCELLED.
  *
- * CREATE/UPDATE/CANCEL each run inside prisma.$transaction and re-read the
- * row via admissionRepository.findByIdTx, so the existence check, the
- * audit oldValue snapshot, and the mutation are transactionally
- * consistent — mirrors ProgramService/CurriculumVersionService. Reads
- * (getAdmissionById/listAdmissions) are never audited.
+ * ── CREATE: AUTHORITATIVE CHECKS RUN INSIDE THE TRANSACTION ───────────
+ *   BEGIN
+ *     load curriculum version (findByIdTx)                        404
+ *     curriculum must be ACTIVE                                   422 CURRICULUM_VERSION_NOT_ADMITTABLE
+ *     load program (findByIdTx)                                   404
+ *     curriculum.programId === program.id                         422 ACADEMIC_HIERARCHY_MISMATCH
+ *     load entry semester (findByIdTx)                            404
+ *     semester.curriculumVersionId === curriculum.id              422 ACADEMIC_HIERARCHY_MISMATCH
+ *     create admission + audit
+ *   COMMIT
+ * DRAFT versions are not finished; RETIRED versions take no new intake.
+ * Existing admissions/enrollments on a RETIRED version are unaffected. The
+ * user-exists and admission-number checks stay outside as fast paths (the FK
+ * and `@@unique([admissionNumber])` are the real guarantees).
+ *
+ * Program/curriculum agreement is additionally enforced by the database via
+ * a composite FK (see the migration), so the service check is now a
+ * friendlier error in front of a constraint, not the only guard.
+ *
+ * KNOWN RESIDUAL WINDOW: the ACTIVE check is a plain read under READ
+ * COMMITTED. A retirement committing between that read and this insert is
+ * not blocked (the FK's key-share lock does not conflict with the
+ * retirement's row update). Result: one admission may land on a version
+ * retired a moment earlier, which is indistinguishable from the admission
+ * having been made just before retirement. Closing it would need a row lock
+ * on the version on every admission (serializing intake); not done.
  *
  * ── CONCURRENT CANCELLATION ──────────────────────────────────────────
- * admissionRepository.cancel() does a conditional
- * `updateMany({ where: { id, status: CONFIRMED } })`, not a plain update.
- * If two cancellations race, the loser's updateMany matches zero rows
- * (Postgres's default READ COMMITTED isolation blocks the loser's UPDATE
- * on the winner's row lock, then re-evaluates the WHERE clause against
- * the now-committed row once unblocked) — it never re-flips or silently
- * no-ops, it reports ADMISSION_CANCELLED_PROTECTED like any other
- * already-cancelled attempt.
+ * admissionRepository.cancel() is a conditional `updateMany({ where: { id,
+ * status: CONFIRMED } })`; the loser matches zero rows and reports
+ * ADMISSION_CANCELLED_PROTECTED.
  *
- * ── WHY "ALREADY CANCELLED" IS A CONFLICT, NOT A SILENT SUCCESS ───────
- * No verified sibling state-transition service (curriculum, academic
- * year, role archive/restore) was available to copy an established
- * idempotency convention from — this was inferred from two pieces of
- * secondary evidence already in this codebase rather than invented from
- * scratch: role.bootstrap.ts explicitly throws instead of silently
- * no-op'ing when a target role is already in an unexpected state, and
- * PromotionBatch's schema comment states FINALIZED must make related
- * records immutable. The same ErrorCode
- * (ErrorCode.ADMISSION_CANCELLED_PROTECTED) covers re-cancelling and
- * PATCHing a CANCELLED admission — same underlying invariant. Flag this
- * for confirmation once an actual sibling transition service is
- * available.
+ * "Already cancelled" is a 409 conflict, not a silent success — consistent
+ * with the other transition services in this codebase.
  */
 export class AdmissionService {
-  /**
-   * Creates an Admission. Sequential existence/hierarchy checks (User,
-   * Program, CurriculumVersion + Program-membership, SemesterCatalog +
-   * CurriculumVersion-membership) so a failure is attributable to the
-   * specific mismatch — see schema.prisma's own comment on the Admission
-   * model for why the hierarchy check belongs here, not in Prisma.
-   * `existsByAdmissionNumber` is a fast-path only; the DB's
-   * `@@unique([admissionNumber])` is the real concurrency guarantee.
-   */
   async createAdmission(actorUserId: string, input: CreateAdmissionInput): Promise<AdmissionDTO> {
     const user = await userRepository.findById(input.userId);
     if (!user) {
       throw ApiError.notFound('User not found', ErrorCode.RECORD_NOT_FOUND);
-    }
-
-    const program = await programRepository.findById(input.initialProgramId);
-    if (!program) {
-      throw ApiError.notFound('Program not found', ErrorCode.RECORD_NOT_FOUND);
-    }
-
-    const curriculumVersion = await curriculumVersionRepository.findById(input.initialCurriculumId);
-    if (!curriculumVersion) {
-      throw ApiError.notFound('Curriculum version not found', ErrorCode.RECORD_NOT_FOUND);
-    }
-    if (curriculumVersion.programId !== input.initialProgramId) {
-      throw ApiError.unprocessable(
-        'The selected curriculum version does not belong to the selected program',
-        ErrorCode.ACADEMIC_HIERARCHY_MISMATCH,
-      );
-    }
-
-    const semesterCatalog = await semesterCatalogRepository.findById(input.entrySemesterCatalogId);
-    if (!semesterCatalog) {
-      throw ApiError.notFound('Semester catalog not found', ErrorCode.RECORD_NOT_FOUND);
-    }
-    if (semesterCatalog.curriculumVersionId !== input.initialCurriculumId) {
-      throw ApiError.unprocessable(
-        'The selected entry semester does not belong to the selected curriculum version',
-        ErrorCode.ACADEMIC_HIERARCHY_MISMATCH,
-      );
     }
 
     const admissionNumberTaken = await admissionRepository.existsByAdmissionNumber(
@@ -119,6 +86,48 @@ export class AdmissionService {
     }
 
     const admission = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const curriculumVersion = await curriculumVersionRepository.findByIdTx(
+        tx,
+        input.initialCurriculumId,
+      );
+      if (!curriculumVersion) {
+        throw ApiError.notFound('Curriculum version not found', ErrorCode.RECORD_NOT_FOUND);
+      }
+
+      if (curriculumVersion.status !== 'ACTIVE') {
+        throw ApiError.unprocessable(
+          'Admissions can only be created against an active curriculum version',
+          ErrorCode.CURRICULUM_VERSION_NOT_ADMITTABLE,
+        );
+      }
+
+      const program = await programRepository.findByIdTx(tx, input.initialProgramId);
+      if (!program) {
+        throw ApiError.notFound('Program not found', ErrorCode.RECORD_NOT_FOUND);
+      }
+
+      if (curriculumVersion.programId !== program.id) {
+        throw ApiError.unprocessable(
+          'The selected curriculum version does not belong to the selected program',
+          ErrorCode.ACADEMIC_HIERARCHY_MISMATCH,
+        );
+      }
+
+      const semesterCatalog = await semesterCatalogRepository.findByIdTx(
+        tx,
+        input.entrySemesterCatalogId,
+      );
+      if (!semesterCatalog) {
+        throw ApiError.notFound('Semester catalog not found', ErrorCode.RECORD_NOT_FOUND);
+      }
+
+      if (semesterCatalog.curriculumVersionId !== curriculumVersion.id) {
+        throw ApiError.unprocessable(
+          'The selected entry semester does not belong to the selected curriculum version',
+          ErrorCode.ACADEMIC_HIERARCHY_MISMATCH,
+        );
+      }
+
       const created = await admissionRepository.create(tx, input, actorUserId);
 
       await recordAuditTx(tx, {
@@ -162,11 +171,7 @@ export class AdmissionService {
     return toAdmissionDTO(admission);
   }
 
-  /**
-   * Not audited — routine read. Cancelled admissions are never filtered
-   * out — they remain queryable via list/get unless the caller explicitly
-   * passes status=CONFIRMED or status=CANCELLED.
-   */
+  /** Not audited — routine read. Cancelled admissions are never filtered out implicitly. */
   async listAdmissions(
     filters: ListAdmissionsFilters,
     options: ListAdmissionsOptions,
@@ -178,12 +183,7 @@ export class AdmissionService {
     };
   }
 
-  /**
-   * Updates admissionDate/quota only. Refused entirely once the admission
-   * is CANCELLED — a cancelled admission is a closed historical record
-   * (see class header). This is the only place that check happens; the
-   * repository stays persistence-only.
-   */
+  /** Updates admissionDate/quota only; refused once CANCELLED. */
   async updateAdmission(
     actorUserId: string,
     id: AdmissionId,
@@ -230,13 +230,7 @@ export class AdmissionService {
     return toAdmissionDTO(updated);
   }
 
-  /**
-   * Cancels a CONFIRMED admission. Dedicated command — not a generic
-   * status setter — so there is no code path that can drive any
-   * transition other than CONFIRMED -> CANCELLED. See class header for
-   * the concurrency guarantee and for why "already cancelled" is a
-   * conflict rather than a silent success.
-   */
+  /** Cancels a CONFIRMED admission. Dedicated command; only CONFIRMED -> CANCELLED is reachable. */
   async cancelAdmission(actorUserId: string, id: AdmissionId): Promise<AdmissionDTO> {
     const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await admissionRepository.findByIdTx(tx, id);
