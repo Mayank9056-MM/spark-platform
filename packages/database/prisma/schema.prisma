@@ -274,6 +274,7 @@ model CurriculumVersion {
   admissions Admission[]
 
   @@unique([programId, label])
+  @@unique([id, programId])
   @@index([programId, status])
   @@map("curriculum_versions")
 }
