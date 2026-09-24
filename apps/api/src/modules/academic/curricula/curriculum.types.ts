@@ -185,3 +185,43 @@ export interface ListCurriculumVersionsResult {
   readonly curriculumVersions: CurriculumVersionDTO[];
   readonly total: number;
 }
+
+export interface CurriculumStructureSubjectDTO {
+  readonly id: string;
+  readonly code: string;
+  readonly name: string;
+  readonly isElective: boolean;
+  readonly electiveGroupId: string | null;
+}
+
+export interface CurriculumStructureElectiveGroupDTO {
+  readonly id: string;
+  readonly name: string;
+  readonly minSelect: number;
+  readonly maxSelect: number;
+}
+
+export interface CurriculumStructureSemesterDTO {
+  readonly id: string;
+  readonly number: number;
+  readonly subjects: CurriculumStructureSubjectDTO[];
+  readonly electiveGroups: CurriculumStructureElectiveGroupDTO[];
+}
+
+/** Read-only administrative view for GET /:id/structure. The lightweight CurriculumVersionDTO is unchanged. */
+export interface CurriculumStructureDTO {
+  readonly id: CurriculumVersionId;
+  readonly label: string;
+  readonly status: CurriculumStatus;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly program: {
+    readonly id: string;
+    readonly name: string;
+    readonly code: string;
+    readonly durationYears: number;
+    readonly totalSemesters: number;
+  };
+  readonly department: { readonly id: string; readonly name: string; readonly code: string };
+  readonly semesters: CurriculumStructureSemesterDTO[];
+}
