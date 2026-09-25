@@ -14,8 +14,8 @@ import {
 } from '@/components/ui/table';
 
 interface AuditDiffViewerProps {
-  oldValue?: Record<string, unknown> | null;
-  newValue?: Record<string, unknown> | null;
+  oldValue?: unknown;
+  newValue?: unknown;
 }
 
 type DiffStatus = 'added' | 'removed' | 'modified' | 'unchanged';
@@ -42,8 +42,20 @@ export function AuditDiffViewer({ oldValue, newValue }: AuditDiffViewerProps) {
   const [showRawJson, setShowRawJson] = React.useState(false);
 
   const diffs: FieldDiff[] = React.useMemo(() => {
-    const oldObj = oldValue ?? {};
-    const newObj = newValue ?? {};
+    const isObject = (val: unknown): val is Record<string, unknown> =>
+      val !== null && typeof val === 'object' && !Array.isArray(val);
+
+    const oldObj: Record<string, unknown> = isObject(oldValue)
+      ? oldValue
+      : oldValue !== undefined && oldValue !== null
+        ? { value: oldValue }
+        : {};
+
+    const newObj: Record<string, unknown> = isObject(newValue)
+      ? newValue
+      : newValue !== undefined && newValue !== null
+        ? { value: newValue }
+        : {};
 
     const allKeys = Array.from(new Set([...Object.keys(oldObj), ...Object.keys(newObj)])).sort();
 
