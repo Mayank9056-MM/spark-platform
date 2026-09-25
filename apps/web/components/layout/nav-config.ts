@@ -1,4 +1,5 @@
 import {
+  BookOpenIcon,
   CalendarClockIcon,
   ClipboardListIcon,
   FileTextIcon,
@@ -21,7 +22,8 @@ export interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
-  section?: 'Overview' | 'Administration' | 'Academic & Operations' | 'Portals' | 'System';
+  section?:
+    'Overview' | 'Teaching' | 'Administration' | 'Academic & Operations' | 'Portals' | 'System';
   /** One key, or any-of-these keys. Omitted items are unrestricted. */
   permission?: string | string[];
   /** Optional role restrictions. Item shown if user has any of these roles. */
@@ -30,6 +32,27 @@ export interface NavItem {
 
 export const NAVIGATION: readonly NavItem[] = [
   { label: 'Dashboard', href: '/app/dashboard', icon: LayoutDashboardIcon, section: 'Overview' },
+  {
+    label: 'My Schedule',
+    href: '/app/faculty/timetable',
+    icon: CalendarClockIcon,
+    section: 'Teaching',
+    roles: ['faculty', 'hod'],
+  },
+  {
+    label: 'Course Workload',
+    href: '/app/faculty/assignments',
+    icon: BookOpenIcon,
+    section: 'Teaching',
+    roles: ['faculty', 'hod'],
+  },
+  {
+    label: 'Mark Attendance',
+    href: '/app/faculty/attendance',
+    icon: UserCheckIcon,
+    section: 'Teaching',
+    roles: ['faculty', 'hod'],
+  },
   {
     label: 'Super Admin',
     href: '/app/super-admin',
@@ -79,20 +102,15 @@ export const NAVIGATION: readonly NavItem[] = [
     icon: ClipboardListIcon,
     section: 'Academic & Operations',
     permission: 'admission:read',
+    roles: ['admin', 'super_admin', 'principal', 'hod', 'officer', 'clerk'],
   },
   {
     label: 'Academic Structure',
     href: '/app/academics',
     icon: LandmarkIcon,
     section: 'Academic & Operations',
-    permission: [
-      'department:read',
-      'program:read',
-      'curriculumVersion:read',
-      'subject:read',
-      'academicYear:read',
-      'electiveGroup:read',
-    ],
+    permission: 'program:read',
+    roles: ['admin', 'super_admin', 'principal', 'hod'],
   },
   {
     label: 'Attendance',
@@ -100,6 +118,7 @@ export const NAVIGATION: readonly NavItem[] = [
     icon: UserCheckIcon,
     section: 'Academic & Operations',
     permission: 'attendance:read',
+    roles: ['admin', 'super_admin', 'principal', 'hod', 'officer'],
   },
   {
     label: 'Timetable',
@@ -107,6 +126,7 @@ export const NAVIGATION: readonly NavItem[] = [
     icon: CalendarClockIcon,
     section: 'Academic & Operations',
     permission: 'timetable:read',
+    roles: ['admin', 'super_admin', 'principal', 'hod'],
   },
   {
     label: 'Promotions',
@@ -114,6 +134,7 @@ export const NAVIGATION: readonly NavItem[] = [
     icon: TrendingUpIcon,
     section: 'Academic & Operations',
     permission: 'promotion:read',
+    roles: ['admin', 'super_admin', 'principal', 'hod'],
   },
   {
     label: 'Faculty Assignments',
@@ -121,6 +142,7 @@ export const NAVIGATION: readonly NavItem[] = [
     icon: IdCardIcon,
     section: 'Academic & Operations',
     permission: 'facultyAssignment:read',
+    roles: ['admin', 'super_admin', 'principal', 'hod'],
   },
   {
     label: 'System Settings',

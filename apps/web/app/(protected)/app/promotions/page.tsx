@@ -1,5 +1,6 @@
 'use client';
 
+import { RequirePermission } from '@/components/auth/require-permission';
 import { EnterpriseListView } from '@/components/erp/enterprise-list-view';
 
 const PROMOTION_COLUMNS = [
@@ -13,11 +14,13 @@ const PROMOTION_COLUMNS = [
 
 export default function PromotionsPage() {
   return (
-    <EnterpriseListView
-      title="Student Promotions"
-      description="Progression batches, semester promotion evaluations, and academic standing decisions."
-      resourceName="Promotion Batches"
-      columns={PROMOTION_COLUMNS}
-    />
+    <RequirePermission require="promotion:read">
+      <EnterpriseListView
+        title="Student Promotions"
+        description="Progression batches, semester promotion evaluations, and academic standing decisions."
+        resourceName="Promotion Batches"
+        columns={PROMOTION_COLUMNS}
+      />
+    </RequirePermission>
   );
 }

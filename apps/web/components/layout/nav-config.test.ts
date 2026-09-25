@@ -63,6 +63,7 @@ describe('Navigation Configuration & Role/Permission Filtering', () => {
         expect(item.icon).toBeDefined();
         expect([
           'Overview',
+          'Teaching',
           'Administration',
           'Academic & Operations',
           'Portals',
@@ -182,6 +183,82 @@ describe('Navigation Configuration & Role/Permission Filtering', () => {
       expect(visibleHrefs).not.toContain('/app/audit-logs');
       expect(visibleHrefs).not.toContain('/app/admissions');
       expect(visibleHrefs).not.toContain('/app/academics');
+      expect(visibleHrefs).not.toContain('/app/faculty/timetable');
+      expect(visibleHrefs).not.toContain('/app/faculty/assignments');
+      expect(visibleHrefs).not.toContain('/app/faculty/attendance');
+    });
+  });
+
+  describe('Faculty Navigation Integrity', () => {
+    const facultyRoles = [makeRole('faculty')];
+    const facultyPermissions = [
+      'subject:read',
+      'facultyAssignment:read',
+      'timetable:read',
+      'semesterCatalog:read',
+      'academicYear:read',
+      'department:read',
+      'lecture:read',
+      'attendance:create',
+      'attendance:read',
+    ];
+    const facultyNav = filterNavItems(NAVIGATION, facultyRoles, facultyPermissions);
+    const visibleHrefs = facultyNav.map((i) => i.href);
+
+    it('exposes Dashboard and dedicated Teaching section to Faculty', () => {
+      expect(visibleHrefs).toContain('/app/dashboard');
+      expect(visibleHrefs).toContain('/app/faculty/timetable');
+      expect(visibleHrefs).toContain('/app/faculty/assignments');
+      expect(visibleHrefs).toContain('/app/faculty/attendance');
+    });
+
+    it('never exposes administrative governance to Faculty', () => {
+      expect(visibleHrefs).not.toContain('/app/super-admin');
+      expect(visibleHrefs).not.toContain('/app/admin');
+      expect(visibleHrefs).not.toContain('/app/settings');
+      expect(visibleHrefs).not.toContain('/app/audit-logs');
+      expect(visibleHrefs).not.toContain('/app/roles');
+      expect(visibleHrefs).not.toContain('/app/permissions');
+      expect(visibleHrefs).not.toContain('/app/academics');
+      expect(visibleHrefs).not.toContain('/app/attendance');
+      expect(visibleHrefs).not.toContain('/app/timetable');
+      expect(visibleHrefs).not.toContain('/app/faculty-assignments');
+      expect(visibleHrefs).not.toContain('/app/promotions');
+      expect(visibleHrefs).not.toContain('/app/admissions');
+    });
+
+    it('exclusively exposes Dashboard and Teaching routes to Faculty', () => {
+      expect(visibleHrefs).toEqual([
+        '/app/dashboard',
+        '/app/faculty/timetable',
+        '/app/faculty/assignments',
+        '/app/faculty/attendance',
+      ]);
+    });
+  });
+
+  describe('HOD Navigation Integrity', () => {
+    const hodRoles = [makeRole('hod')];
+    const hodNav = filterNavItems(NAVIGATION, hodRoles, allPermissions);
+    const visibleHrefs = hodNav.map((i) => i.href);
+
+    it('exposes both Teaching and Academic & Operations to HOD', () => {
+      expect(visibleHrefs).toContain('/app/dashboard');
+      expect(visibleHrefs).toContain('/app/faculty/timetable');
+      expect(visibleHrefs).toContain('/app/faculty/assignments');
+      expect(visibleHrefs).toContain('/app/faculty/attendance');
+      expect(visibleHrefs).toContain('/app/admissions');
+      expect(visibleHrefs).toContain('/app/academics');
+      expect(visibleHrefs).toContain('/app/attendance');
+      expect(visibleHrefs).toContain('/app/timetable');
+      expect(visibleHrefs).toContain('/app/promotions');
+      expect(visibleHrefs).toContain('/app/faculty-assignments');
+    });
+
+    it('never exposes Super Admin, Admin Console, or System Settings to HOD', () => {
+      expect(visibleHrefs).not.toContain('/app/super-admin');
+      expect(visibleHrefs).not.toContain('/app/admin');
+      expect(visibleHrefs).not.toContain('/app/settings');
     });
   });
 

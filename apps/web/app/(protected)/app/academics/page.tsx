@@ -11,6 +11,7 @@ import {
 import Link from 'next/link';
 import * as React from 'react';
 
+import { RequireRole } from '@/components/auth/require-role';
 import { PageHeader } from '@/components/erp/page-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -20,12 +21,28 @@ import { useAcademicYears } from '@/features/academics/hooks/use-academic-years'
 import { useCurricula } from '@/features/academics/hooks/use-curricula';
 import { useDepartments } from '@/features/academics/hooks/use-departments';
 import { usePrograms } from '@/features/academics/hooks/use-programs';
+import { useAuth } from '@/features/auth';
+import { hasPermission } from '@/features/rbac';
 
 export default function AcademicsPage() {
-  const { data: deptData, isLoading: deptsLoading } = useDepartments({ limit: 5 });
-  const { data: progData, isLoading: progsLoading } = usePrograms({ limit: 5 });
-  const { data: currData, isLoading: currsLoading } = useCurricula({ limit: 5 });
-  const { data: yearData, isLoading: yearsLoading } = useAcademicYears({ limit: 5 });
+  return (
+    <RequireRole allow={['admin', 'super_admin', 'principal', 'hod']}>
+      <AcademicsPageContent />
+    </RequireRole>
+  );
+}
+
+function AcademicsPageContent() {
+  const { permissions } = useAuth();
+  const canReadDepts = hasPermission(permissions, 'department:read');
+  const canReadProgs = hasPermission(permissions, 'program:read');
+  const canReadCurrs = hasPermission(permissions, 'curriculumVersion:read');
+  const canReadYears = hasPermission(permissions, 'academicYear:read');
+
+  const { data: deptData, isLoading: deptsLoading } = useDepartments({ limit: 5 }, canReadDepts);
+  const { data: progData, isLoading: progsLoading } = usePrograms({ limit: 5 }, canReadProgs);
+  const { data: currData, isLoading: currsLoading } = useCurricula({ limit: 5 }, canReadCurrs);
+  const { data: yearData, isLoading: yearsLoading } = useAcademicYears({ limit: 5 }, canReadYears);
 
   const activeYear = yearData?.items?.find((y) => y.isActive);
 

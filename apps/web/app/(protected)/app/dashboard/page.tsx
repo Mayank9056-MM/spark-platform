@@ -5,6 +5,7 @@ import * as React from 'react';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/features/auth';
 import { DASHBOARD_SECTIONS, PermissionFilteredDashboard } from '@/features/dashboard';
+import { FacultyDashboardContent } from '@/features/faculty';
 import { hasAnyRole, hasRole } from '@/features/rbac';
 import { StudentDashboardContent } from '@/features/student';
 
@@ -35,6 +36,13 @@ export default function DashboardPage() {
 
   if (isStudentOnly) {
     return <StudentDashboardContent />;
+  }
+
+  const isFacultyRole =
+    hasAnyRole(roles, ['faculty', 'hod']) && !hasAnyRole(roles, ['admin', 'super_admin']);
+
+  if (isFacultyRole) {
+    return <FacultyDashboardContent />;
   }
 
   return (

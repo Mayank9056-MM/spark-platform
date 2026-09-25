@@ -23,6 +23,7 @@ import { hasAnyPermission, hasAnyRole } from '@/features/rbac';
 
 const SECTIONS = [
   'Overview',
+  'Teaching',
   'Administration',
   'Academic & Operations',
   'Portals',

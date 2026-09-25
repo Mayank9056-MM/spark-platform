@@ -1,5 +1,12 @@
-import { ModuleUnavailable } from '@/components/erp/module-unavailable';
+'use client';
+
+import { RequireRole } from '@/components/auth/require-role';
+import { FacultyDashboardContent } from '@/features/faculty';
 
 export default function FacultyPage() {
-  return <ModuleUnavailable title="Faculty" />;
+  return (
+    <RequireRole allow={['faculty', 'hod', 'admin', 'super_admin']}>
+      <FacultyDashboardContent />
+    </RequireRole>
+  );
 }
