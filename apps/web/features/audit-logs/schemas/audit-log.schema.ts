@@ -1,10 +1,29 @@
 import { z } from 'zod';
 
-export const AUDIT_ACTIONS = ['CREATE', 'UPDATE', 'DELETE', 'RESTORE', 'ARCHIVE'] as const;
+export const AUDIT_ACTIONS = [
+  'CREATE',
+  'UPDATE',
+  'DELETE',
+  'ARCHIVE',
+  'RESTORE',
+  'LOGIN',
+  'LOGIN_FAILED',
+  'LOGOUT',
+  'LOGOUT_ALL_DEVICES',
+  'SESSION_REVOKED',
+  'ACCOUNT_ACTIVATED',
+  'PASSWORD_CHANGED',
+  'PASSWORD_RESET_REQUESTED',
+  'PASSWORD_RESET_COMPLETED',
+  'ROLE_GRANTED',
+  'ROLE_REVOKED',
+  'PERMISSION_CHANGED',
+  'OTHER',
+] as const;
 
-export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+export type AuditAction = (typeof AUDIT_ACTIONS)[number] | (string & {});
 
-export const auditActionSchema = z.enum(AUDIT_ACTIONS);
+export const auditActionSchema = z.string();
 
 export const auditLogActorSchema = z.object({
   id: z.string(),
@@ -23,8 +42,8 @@ export const auditLogSchema = z.object({
   action: auditActionSchema,
   entityType: z.string(),
   entityId: z.string(),
-  oldValue: z.record(z.string(), z.unknown()).nullable().optional(),
-  newValue: z.record(z.string(), z.unknown()).nullable().optional(),
+  oldValue: z.unknown().nullable().optional(),
+  newValue: z.unknown().nullable().optional(),
   requestId: z.string().nullable().optional(),
   ipAddress: z.string().nullable().optional(),
   userAgent: z.string().nullable().optional(),
@@ -37,7 +56,7 @@ export interface ListAuditLogsParams {
   page?: number;
   limit?: number;
   search?: string;
-  action?: AuditAction;
+  action?: string;
   entityType?: string;
   entityId?: string;
   actorUserId?: string;
