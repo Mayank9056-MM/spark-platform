@@ -52,33 +52,39 @@ const COMMON_ENTITY_TYPES = [
   'Lecture',
 ] as const;
 
-function getActionBadge(action: AuditAction) {
+function getActionBadge(action: string) {
   switch (action) {
     case 'CREATE':
+    case 'ROLE_GRANTED':
+    case 'ACCOUNT_ACTIVATED':
       return (
         <Badge
           variant="outline"
           className="border-emerald-500/30 bg-emerald-500/10 font-mono text-[10px] text-emerald-700"
         >
-          CREATE
+          {action}
         </Badge>
       );
     case 'UPDATE':
+    case 'ROLE_REVOKED':
+    case 'PASSWORD_CHANGED':
       return (
         <Badge
           variant="outline"
           className="border-amber-500/30 bg-amber-500/10 font-mono text-[10px] text-amber-700 dark:text-amber-400"
         >
-          UPDATE
+          {action}
         </Badge>
       );
     case 'DELETE':
+    case 'LOGIN_FAILED':
+    case 'SESSION_REVOKED':
       return (
         <Badge
           variant="outline"
           className="border-destructive/30 bg-destructive/10 text-destructive font-mono text-[10px]"
         >
-          DELETE
+          {action}
         </Badge>
       );
     case 'ARCHIVE':
@@ -87,20 +93,26 @@ function getActionBadge(action: AuditAction) {
           variant="secondary"
           className="border-border/60 bg-muted/60 text-muted-foreground font-mono text-[10px]"
         >
-          ARCHIVE
+          {action}
         </Badge>
       );
     case 'RESTORE':
+    case 'LOGIN':
+    case 'LOGOUT':
       return (
         <Badge
           variant="outline"
           className="border-primary/30 bg-primary/10 text-primary font-mono text-[10px]"
         >
-          RESTORE
+          {action}
         </Badge>
       );
     default:
-      return <Badge variant="secondary">{action}</Badge>;
+      return (
+        <Badge variant="secondary" className="font-mono text-[10px]">
+          {action}
+        </Badge>
+      );
   }
 }
 
