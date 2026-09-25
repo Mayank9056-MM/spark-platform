@@ -107,6 +107,7 @@ export default function AuditLogsPage() {
       {/* Live Transaction Journal */}
       <PermissionGuard
         require="auditLog:read"
+        allowRoles={['super_admin', 'admin']}
         fallback={
           <div className="border-border/80 bg-muted/20 text-muted-foreground rounded-lg border p-8 text-center text-xs">
             You do not have permission to view institutional audit telemetry. Contact a Super Admin
