@@ -37,7 +37,7 @@ const ROLE_DESTINATION: Readonly<Record<RoleKey, AppDestination>> = {
   officer: '/app/dashboard',
   clerk: '/app/dashboard',
   secretary: '/app/dashboard',
-  student: '/app/student',
+  student: '/app/dashboard',
 };
 
 /**

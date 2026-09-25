@@ -198,9 +198,9 @@ export function GlobalSearchDialog() {
                 </CommandItem>
               )}
             {hasRole(roles, 'student') && (
-              <CommandItem onSelect={() => runCommand(() => router.push('/app/student'))}>
+              <CommandItem onSelect={() => runCommand(() => router.push('/app/dashboard'))}>
                 <GraduationCapIcon className="text-primary size-4 shrink-0" />
-                <span>Student Academic Portal</span>
+                <span>Student Academic Dashboard</span>
               </CommandItem>
             )}
           </CommandGroup>

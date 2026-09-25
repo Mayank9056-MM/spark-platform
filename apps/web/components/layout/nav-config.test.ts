@@ -71,11 +71,9 @@ describe('Navigation Configuration & Role/Permission Filtering', () => {
       }
     });
 
-    it('strictly maps Student Portal to the student role', () => {
+    it('does not contain redundant Student Portal entry in navigation', () => {
       const studentPortalItem = NAVIGATION.find((item) => item.href === '/app/student');
-      expect(studentPortalItem).toBeDefined();
-      expect(studentPortalItem?.label).toBe('Student Portal');
-      expect(studentPortalItem?.roles).toEqual(['student']);
+      expect(studentPortalItem).toBeUndefined();
     });
 
     it('strictly maps Super Admin route to super_admin role', () => {
@@ -95,6 +93,12 @@ describe('Navigation Configuration & Role/Permission Filtering', () => {
       expect(auditLogsItem).toBeDefined();
       expect(auditLogsItem?.permission).toBe('auditLog:read');
       expect(auditLogsItem?.roles).toEqual(['admin', 'super_admin']);
+    });
+
+    it('strictly maps System Settings to admin and super_admin roles', () => {
+      const settingsItem = NAVIGATION.find((item) => item.href === '/app/settings');
+      expect(settingsItem).toBeDefined();
+      expect(settingsItem?.roles).toEqual(['admin', 'super_admin']);
     });
   });
 
@@ -164,15 +168,15 @@ describe('Navigation Configuration & Role/Permission Filtering', () => {
     const studentNav = filterNavItems(NAVIGATION, studentRoles, studentPermissions);
     const visibleHrefs = studentNav.map((i) => i.href);
 
-    it('exposes Student Portal (/app/student) to Student', () => {
-      expect(visibleHrefs).toContain('/app/student');
+    it('exposes Dashboard (/app/dashboard) to Student as their unified workspace', () => {
+      expect(visibleHrefs).toEqual(['/app/dashboard']);
     });
 
     it('never exposes administrative modules to Student', () => {
       expect(visibleHrefs).not.toContain('/app/super-admin');
       expect(visibleHrefs).not.toContain('/app/admin');
       expect(visibleHrefs).not.toContain('/app/users');
-      expect(visibleHrefs).toContain('/app/settings');
+      expect(visibleHrefs).not.toContain('/app/settings');
       expect(visibleHrefs).not.toContain('/app/roles');
       expect(visibleHrefs).not.toContain('/app/permissions');
       expect(visibleHrefs).not.toContain('/app/audit-logs');
@@ -187,8 +191,8 @@ describe('Navigation Configuration & Role/Permission Filtering', () => {
     const unassignedNav = filterNavItems(NAVIGATION, emptyRoles, emptyPermissions);
     const visibleHrefs = unassignedNav.map((i) => i.href);
 
-    it('only exposes unrestricted items (Dashboard, System Settings)', () => {
-      expect(visibleHrefs).toEqual(['/app/dashboard', '/app/settings']);
+    it('only exposes unrestricted items (Dashboard)', () => {
+      expect(visibleHrefs).toEqual(['/app/dashboard']);
     });
   });
 });

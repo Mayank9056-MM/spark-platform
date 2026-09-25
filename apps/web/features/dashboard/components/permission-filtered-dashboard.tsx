@@ -254,11 +254,10 @@ export function PermissionFilteredDashboard({
             <div className="flex items-center gap-2">
               <ShieldCheckIcon className="text-primary size-4 shrink-0" aria-hidden="true" />
               <span>
-                Role-Based Governance: S.P.A.R.K. enforces fine-grained capability tokens verified
-                against HVPM COET operational policies.
+                Institutional Operations: S.P.A.R.K. role-based authorization for HVPM COET.
               </span>
             </div>
-            <span className="hidden font-mono text-[10px] md:inline-block">AMV-SEC-01</span>
+            <span className="hidden font-mono text-[10px] md:inline-block">Node AMV-01</span>
           </div>
         </>
       )}

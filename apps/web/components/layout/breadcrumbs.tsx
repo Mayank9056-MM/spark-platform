@@ -12,7 +12,7 @@ import {
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
 import { useAuth } from '@/features/auth';
-import { hasRole } from '@/features/rbac';
+import { hasAnyRole, hasRole } from '@/features/rbac';
 
 function toLabel(segment: string): string {
   return segment
@@ -46,7 +46,9 @@ export function Breadcrumbs() {
       <BreadcrumbList>
         {crumbs.map(({ segment, href }, index) => {
           const isLast = index === crumbs.length - 1;
-          const isRestrictedForRole = href === '/app/student' && !hasRole(roles, 'student');
+          const isRestrictedForRole =
+            (href === '/app/student' && !hasRole(roles, 'student')) ||
+            (href === '/app/settings' && !hasAnyRole(roles, ['admin', 'super_admin']));
           return (
             <Fragment key={href}>
               <BreadcrumbItem>

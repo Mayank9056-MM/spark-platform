@@ -1,4 +1,6 @@
-import { InboxIcon, ShieldCheckIcon } from 'lucide-react';
+'use client';
+
+import { Building2Icon, InboxIcon } from 'lucide-react';
 
 import {
   Empty,
@@ -8,7 +10,10 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty';
 
-/** Shown when a signed-in user's permissions unlock zero sections — this is the exact, non-fabricated state a `student` sees today. */
+/**
+ * Clean institutional empty state shown when an authenticated staff/user
+ * does not have operational permissions assigned for the operational directory.
+ */
 export function EmptyDashboardState() {
   return (
     <div className="col-span-full py-8">
@@ -21,15 +26,15 @@ export function EmptyDashboardState() {
             <InboxIcon aria-hidden="true" className="size-6" />
           </EmptyMedia>
           <EmptyTitle className="text-foreground text-base font-semibold">
-            No active modules available
+            Account Setup in Progress
           </EmptyTitle>
           <EmptyDescription className="text-muted-foreground text-xs leading-relaxed">
-            Your account does not currently have permissions assigned for active operational
-            modules. Academic records and term registrations will appear here when authorized.
+            Your account is active. Institutional modules and operational workspaces will appear
+            here once role assignments are configured by the college administration.
           </EmptyDescription>
           <div className="text-muted-foreground/80 flex items-center justify-center gap-1.5 pt-2 text-[11px]">
-            <ShieldCheckIcon className="text-primary size-3" aria-hidden="true" />
-            <span>HVPM COET Access Governance</span>
+            <Building2Icon className="text-primary size-3" aria-hidden="true" />
+            <span>HVPM College of Engineering &amp; Technology</span>
           </div>
         </EmptyHeader>
       </Empty>
