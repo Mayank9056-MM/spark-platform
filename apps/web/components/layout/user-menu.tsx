@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDownIcon, LogOutIcon, SettingsIcon, ShieldCheckIcon } from 'lucide-react';
+import { ChevronDownIcon, LogOutIcon, SettingsIcon, ShieldCheckIcon, UserIcon } from 'lucide-react';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/features/auth';
+import { hasAnyRole, hasRole } from '@/features/rbac';
 
 function initials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
@@ -76,18 +77,38 @@ export function UserMenu() {
             )}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem
-            className="cursor-pointer py-1.5 text-xs"
-            onClick={() => {
-              window.location.href = '/app/settings';
-            }}
-          >
-            <SettingsIcon className="text-muted-foreground mr-2 size-3.5" aria-hidden="true" />
-            <span>Institutional Settings</span>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
+        {hasAnyRole(roles, ['admin', 'super_admin']) && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                className="cursor-pointer py-1.5 text-xs"
+                onClick={() => {
+                  window.location.href = '/app/settings';
+                }}
+              >
+                <SettingsIcon className="text-muted-foreground mr-2 size-3.5" aria-hidden="true" />
+                <span>Institutional Settings</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </>
+        )}
+        {hasRole(roles, 'student') && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                className="cursor-pointer py-1.5 text-xs"
+                onClick={() => {
+                  window.location.href = '/app/student/profile';
+                }}
+              >
+                <UserIcon className="text-muted-foreground mr-2 size-3.5" aria-hidden="true" />
+                <span>My Student Profile</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           disabled={isLoggingOut}

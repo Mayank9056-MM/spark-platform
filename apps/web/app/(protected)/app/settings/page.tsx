@@ -60,26 +60,24 @@ export default function SettingsPage() {
               <div className="border-border/40 grid grid-cols-1 gap-4 border-t pt-4 sm:grid-cols-3">
                 <div>
                   <span className="text-muted-foreground block text-[11px] font-medium tracking-wider uppercase">
-                    Deployment Topology
+                    University Affiliation
                   </span>
-                  <p className="text-foreground mt-1 font-medium">Dedicated Single-College</p>
+                  <p className="text-foreground mt-1 font-medium">SGBAU Amravati</p>
                 </div>
 
                 <div>
                   <span className="text-muted-foreground block text-[11px] font-medium tracking-wider uppercase">
-                    Database Schema
+                    Regulatory Code
                   </span>
-                  <code className="text-foreground bg-muted/60 mt-1 inline-block rounded px-1.5 py-0.5 font-mono text-[11px]">
-                    PostgreSQL / Prisma
-                  </code>
+                  <p className="text-foreground mt-1 font-medium">DTE: 1128 &bull; AICTE</p>
                 </div>
 
                 <div>
                   <span className="text-muted-foreground block text-[11px] font-medium tracking-wider uppercase">
-                    API Gateway Protocol
+                    Institutional Node
                   </span>
                   <code className="text-foreground bg-muted/60 mt-1 inline-block rounded px-1.5 py-0.5 font-mono text-[11px]">
-                    HTTP/2 &bull; JSON:API
+                    Node AMV-01 (Production)
                   </code>
                 </div>
               </div>
@@ -91,18 +89,18 @@ export default function SettingsPage() {
             <CardHeader className="border-border/40 border-b pb-4">
               <CardTitle className="flex items-center gap-2 text-sm font-semibold">
                 <LockIcon className="text-primary size-4" />
-                <span>Security Policies & Session Invariants</span>
+                <span>Institutional Security Policies</span>
               </CardTitle>
               <CardDescription className="text-xs">
-                Governing security policies enforced across all user sessions.
+                Governing security policies enforced across all institutional user sessions.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 pt-4 text-xs">
               <div className="border-border/60 bg-muted/20 flex items-center justify-between rounded-md border p-2.5">
                 <div>
-                  <div className="text-foreground font-semibold">Session Token Lifetime</div>
+                  <div className="text-foreground font-semibold">Session Inactivity Lockout</div>
                   <div className="text-muted-foreground text-[11px]">
-                    JWT access token validity duration
+                    Automatic idle session expiration duration
                   </div>
                 </div>
                 <Badge variant="outline" className="font-mono text-[10px]">
@@ -112,9 +110,9 @@ export default function SettingsPage() {
 
               <div className="border-border/60 bg-muted/20 flex items-center justify-between rounded-md border p-2.5">
                 <div>
-                  <div className="text-foreground font-semibold">Refresh Token Window</div>
+                  <div className="text-foreground font-semibold">Session Credential Rotation</div>
                   <div className="text-muted-foreground text-[11px]">
-                    Long-lived session rotation cookie
+                    Sliding window institutional token renewal
                   </div>
                 </div>
                 <Badge variant="outline" className="font-mono text-[10px]">
@@ -124,7 +122,7 @@ export default function SettingsPage() {
 
               <div className="border-border/60 bg-muted/20 flex items-center justify-between rounded-md border p-2.5">
                 <div>
-                  <div className="text-foreground font-semibold">Single Active Session Rule</div>
+                  <div className="text-foreground font-semibold">Academic Term Invariant</div>
                   <div className="text-muted-foreground text-[11px]">
                     At most one academic year active college-wide
                   </div>
