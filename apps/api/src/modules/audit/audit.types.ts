@@ -50,3 +50,47 @@ export interface RecordAuditInput {
   ipAddress?: string | null;
   userAgent?: string | null;
 }
+
+export interface AuditLogActorDTO {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  avatarUrl: string | null;
+}
+
+export interface AuditLogDTO {
+  id: string;
+  actorUserId: string | null;
+  actor: AuditLogActorDTO | null;
+  action: AuditAction;
+  entityType: string;
+  entityId: string;
+  oldValue: Record<string, unknown> | null;
+  newValue: Record<string, unknown> | null;
+  requestId: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: Date;
+}
+
+export interface ListAuditLogsFilters {
+  actorUserId?: string | undefined;
+  action?: AuditAction | undefined;
+  entityType?: string | undefined;
+  entityId?: string | undefined;
+  dateFrom?: Date | undefined;
+  dateTo?: Date | undefined;
+  search?: string | undefined;
+}
+
+export interface ListAuditLogsOptions {
+  page: number;
+  limit: number;
+  sortOrder?: 'asc' | 'desc' | undefined;
+}
+
+export interface ListAuditLogsResult {
+  logs: AuditLogDTO[];
+  total: number;
+}

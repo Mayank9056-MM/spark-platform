@@ -457,6 +457,12 @@ export const PERMISSIONS = Object.freeze({
     'Lock Attendance Session',
     'Allows locking an attendance session so it no longer accepts new attendance records. This action cannot be reversed.',
   ),
+  AUDIT_LOG_READ: definePermission(
+    'auditLog',
+    'read',
+    'Read Audit Logs',
+    'Allows viewing platform audit trails, security event history, and administrative transaction records.',
+  ),
 } as const satisfies Record<string, PermissionCatalogEntry>);
 
 /**

@@ -56,7 +56,8 @@ export type AuthorizationResource =
   | 'lecture'
   | 'attendance'
   | 'assignment'
-  | 'notice';
+  | 'notice'
+  | 'auditLog';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Permission identity
