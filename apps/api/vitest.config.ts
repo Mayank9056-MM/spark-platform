@@ -9,5 +9,24 @@ export default defineConfig(
         '@': path.resolve(__dirname, './src'),
       },
     },
+    test: {
+      coverage: {
+        exclude: [
+          'node_modules/**',
+          'dist/**',
+          '.next/**',
+          '**/*.config.*',
+          '**/*.d.ts',
+          '**/generated/**',
+          '**/*.test.{ts,tsx}',
+          '**/*.spec.{ts,tsx}',
+          'src/scripts/**',
+          '**/*.repository.ts',
+          '**/*.routes.ts',
+          'src/app.ts',
+          'src/server.ts',
+        ],
+      },
+    },
   }),
 );

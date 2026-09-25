@@ -79,7 +79,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSection[] = [
     title: 'Academic Structure',
     description: 'Departments, programs, and curriculum versions.',
     icon: BuildingIcon,
-    permission: 'department:read',
+    permission: 'program:read',
     href: '/app/academics',
   },
   {
@@ -87,7 +87,7 @@ export const DASHBOARD_SECTIONS: readonly DashboardSection[] = [
     title: 'Subjects',
     description: 'Subjects across active semester catalogs.',
     icon: BookOpenIcon,
-    permission: 'subject:read',
+    permission: 'program:read',
     href: '/app/academics',
   },
   {

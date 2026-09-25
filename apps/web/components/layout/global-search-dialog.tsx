@@ -32,7 +32,7 @@ import {
   CommandSeparator,
 } from '@/components/ui/command';
 import { useAuth } from '@/features/auth';
-import { hasAnyPermission, hasAnyRole, hasPermission, hasRole } from '@/features/rbac';
+import { hasAnyRole, hasPermission, hasRole } from '@/features/rbac';
 
 export function GlobalSearchDialog() {
   const [open, setOpen] = React.useState(false);
@@ -109,64 +109,93 @@ export function GlobalSearchDialog() {
               <span>Dashboard / Role Center</span>
             </CommandItem>
 
-            {hasPermission(permissions, 'admission:read') && (
-              <CommandItem onSelect={() => runCommand(() => router.push('/app/admissions'))}>
-                <ClipboardListIcon className="text-primary size-4 shrink-0" />
-                <span>Admissions Overview</span>
-              </CommandItem>
-            )}
-
-            {hasAnyPermission(permissions, [
-              'department:read',
-              'program:read',
-              'curriculumVersion:read',
-              'subject:read',
-              'academicYear:read',
-              'electiveGroup:read',
-            ]) && (
+            {hasAnyRole(roles, ['faculty', 'hod']) && (
               <>
-                <CommandItem onSelect={() => runCommand(() => router.push('/app/academics'))}>
-                  <LandmarkIcon className="text-primary size-4 shrink-0" />
-                  <span>Academic Structure &amp; Catalogs</span>
+                <CommandItem
+                  onSelect={() => runCommand(() => router.push('/app/faculty/timetable'))}
+                >
+                  <CalendarClockIcon className="text-primary size-4 shrink-0" />
+                  <span>My Teaching Schedule</span>
                 </CommandItem>
                 <CommandItem
-                  onSelect={() => runCommand(() => router.push('/app/academics/curricula'))}
+                  onSelect={() => runCommand(() => router.push('/app/faculty/assignments'))}
                 >
                   <BookOpenIcon className="text-primary size-4 shrink-0" />
-                  <span>Curriculum Versions &amp; Syllabi</span>
+                  <span>My Course Allocations</span>
+                </CommandItem>
+                <CommandItem
+                  onSelect={() => runCommand(() => router.push('/app/faculty/attendance'))}
+                >
+                  <UserCheckIcon className="text-primary size-4 shrink-0" />
+                  <span>Mark Class Attendance</span>
                 </CommandItem>
               </>
             )}
 
-            {hasPermission(permissions, 'attendance:read') && (
-              <CommandItem onSelect={() => runCommand(() => router.push('/app/attendance'))}>
-                <UserCheckIcon className="text-primary size-4 shrink-0" />
-                <span>Attendance Sessions &amp; Records</span>
-              </CommandItem>
-            )}
+            {hasPermission(permissions, 'admission:read') &&
+              hasAnyRole(roles, [
+                'admin',
+                'super_admin',
+                'principal',
+                'hod',
+                'officer',
+                'clerk',
+              ]) && (
+                <CommandItem onSelect={() => runCommand(() => router.push('/app/admissions'))}>
+                  <ClipboardListIcon className="text-primary size-4 shrink-0" />
+                  <span>Admissions Overview</span>
+                </CommandItem>
+              )}
 
-            {hasPermission(permissions, 'timetable:read') && (
-              <CommandItem onSelect={() => runCommand(() => router.push('/app/timetable'))}>
-                <CalendarClockIcon className="text-primary size-4 shrink-0" />
-                <span>Timetable &amp; Schedule</span>
-              </CommandItem>
-            )}
+            {hasPermission(permissions, 'program:read') &&
+              hasAnyRole(roles, ['admin', 'super_admin', 'principal', 'hod']) && (
+                <>
+                  <CommandItem onSelect={() => runCommand(() => router.push('/app/academics'))}>
+                    <LandmarkIcon className="text-primary size-4 shrink-0" />
+                    <span>Academic Structure &amp; Catalogs</span>
+                  </CommandItem>
+                  <CommandItem
+                    onSelect={() => runCommand(() => router.push('/app/academics/curricula'))}
+                  >
+                    <BookOpenIcon className="text-primary size-4 shrink-0" />
+                    <span>Curriculum Versions &amp; Syllabi</span>
+                  </CommandItem>
+                </>
+              )}
 
-            {hasPermission(permissions, 'promotion:read') && (
-              <CommandItem onSelect={() => runCommand(() => router.push('/app/promotions'))}>
-                <TrendingUpIcon className="text-primary size-4 shrink-0" />
-                <span>Student Progression &amp; Promotions</span>
-              </CommandItem>
-            )}
+            {hasPermission(permissions, 'attendance:read') &&
+              hasAnyRole(roles, ['admin', 'super_admin', 'principal', 'hod', 'officer']) && (
+                <CommandItem onSelect={() => runCommand(() => router.push('/app/attendance'))}>
+                  <UserCheckIcon className="text-primary size-4 shrink-0" />
+                  <span>Attendance Sessions &amp; Records</span>
+                </CommandItem>
+              )}
 
-            {hasPermission(permissions, 'facultyAssignment:read') && (
-              <CommandItem
-                onSelect={() => runCommand(() => router.push('/app/faculty-assignments'))}
-              >
-                <IdCardIcon className="text-primary size-4 shrink-0" />
-                <span>Faculty Subject Assignments</span>
-              </CommandItem>
-            )}
+            {hasPermission(permissions, 'timetable:read') &&
+              hasAnyRole(roles, ['admin', 'super_admin', 'principal', 'hod']) && (
+                <CommandItem onSelect={() => runCommand(() => router.push('/app/timetable'))}>
+                  <CalendarClockIcon className="text-primary size-4 shrink-0" />
+                  <span>Timetable &amp; Schedule</span>
+                </CommandItem>
+              )}
+
+            {hasPermission(permissions, 'promotion:read') &&
+              hasAnyRole(roles, ['admin', 'super_admin', 'principal', 'hod']) && (
+                <CommandItem onSelect={() => runCommand(() => router.push('/app/promotions'))}>
+                  <TrendingUpIcon className="text-primary size-4 shrink-0" />
+                  <span>Student Progression &amp; Promotions</span>
+                </CommandItem>
+              )}
+
+            {hasPermission(permissions, 'facultyAssignment:read') &&
+              hasAnyRole(roles, ['admin', 'super_admin', 'principal', 'hod']) && (
+                <CommandItem
+                  onSelect={() => runCommand(() => router.push('/app/faculty-assignments'))}
+                >
+                  <IdCardIcon className="text-primary size-4 shrink-0" />
+                  <span>Faculty Subject Assignments</span>
+                </CommandItem>
+              )}
           </CommandGroup>
 
           <CommandSeparator />

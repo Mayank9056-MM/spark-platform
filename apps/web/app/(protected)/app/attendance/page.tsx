@@ -1,5 +1,6 @@
 'use client';
 
+import { RequireRole } from '@/components/auth/require-role';
 import { EnterpriseListView } from '@/components/erp/enterprise-list-view';
 
 const ATTENDANCE_COLUMNS = [
@@ -13,11 +14,13 @@ const ATTENDANCE_COLUMNS = [
 
 export default function AttendancePage() {
   return (
-    <EnterpriseListView
-      title="Attendance"
-      description="Lecture attendance sessions, student participation registers, and compliance records."
-      resourceName="Attendance Sessions"
-      columns={ATTENDANCE_COLUMNS}
-    />
+    <RequireRole allow={['admin', 'super_admin', 'principal', 'hod', 'officer']}>
+      <EnterpriseListView
+        title="Attendance"
+        description="Lecture attendance sessions, student participation registers, and compliance records."
+        resourceName="Attendance Sessions"
+        columns={ATTENDANCE_COLUMNS}
+      />
+    </RequireRole>
   );
 }
