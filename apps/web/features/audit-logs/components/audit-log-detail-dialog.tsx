@@ -12,7 +12,6 @@ import {
 import * as React from 'react';
 
 import { useAuditLog } from '../hooks/use-audit-log';
-import type { AuditAction } from '../schemas/audit-log.schema';
 
 import { AuditDiffViewer } from './audit-diff-viewer';
 
@@ -35,22 +34,28 @@ interface AuditLogDetailDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-function getActionBadgeVariant(action: AuditAction): {
+function getActionBadgeVariant(action: string): {
   variant: 'default' | 'secondary' | 'outline' | 'destructive';
   className?: string;
 } {
   switch (action) {
     case 'CREATE':
+    case 'ROLE_GRANTED':
+    case 'ACCOUNT_ACTIVATED':
       return {
         variant: 'outline',
         className: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700',
       };
     case 'UPDATE':
+    case 'ROLE_REVOKED':
+    case 'PASSWORD_CHANGED':
       return {
         variant: 'outline',
         className: 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400',
       };
     case 'DELETE':
+    case 'LOGIN_FAILED':
+    case 'SESSION_REVOKED':
       return {
         variant: 'outline',
         className: 'border-destructive/30 bg-destructive/10 text-destructive',
@@ -61,7 +66,12 @@ function getActionBadgeVariant(action: AuditAction): {
         className: 'border-border/60 bg-muted/60 text-muted-foreground',
       };
     case 'RESTORE':
-      return { variant: 'outline', className: 'border-primary/30 bg-primary/10 text-primary' };
+    case 'LOGIN':
+    case 'LOGOUT':
+      return {
+        variant: 'outline',
+        className: 'border-primary/30 bg-primary/10 text-primary',
+      };
     default:
       return { variant: 'secondary' };
   }
