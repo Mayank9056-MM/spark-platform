@@ -21,9 +21,14 @@ export default function AppRootPage() {
   }, [roles, router]);
 
   return (
-    <div role="status" className="flex items-center gap-2 text-sm">
-      <Spinner aria-hidden="true" />
-      <span>Loading…</span>
+    <div
+      role="status"
+      className="flex min-h-[40vh] flex-1 flex-col items-center justify-center gap-3 text-center"
+    >
+      <Spinner aria-hidden="true" className="text-primary size-6" />
+      <p className="text-muted-foreground text-xs font-medium">
+        Resolving your institutional workspace…
+      </p>
     </div>
   );
 }
