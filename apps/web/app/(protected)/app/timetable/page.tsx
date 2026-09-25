@@ -1,12 +1,23 @@
 'use client';
 
-import { ModuleNotConnected } from '@/components/erp/module-not-connected';
-import { ModuleShell } from '@/components/erp/module-shell';
+import { EnterpriseListView } from '@/components/erp/enterprise-list-view';
+
+const TIMETABLE_COLUMNS = [
+  { header: 'Slot & Day' },
+  { header: 'Subject / Code' },
+  { header: 'Program & Semester' },
+  { header: 'Assigned Faculty' },
+  { header: 'Classroom / Lab' },
+  { header: 'Schedule Status' },
+] as const;
 
 export default function TimetablePage() {
   return (
-    <ModuleShell title="Timetable" description="Scheduled lectures across subjects and rooms.">
-      <ModuleNotConnected resource="Timetable entries" />
-    </ModuleShell>
+    <EnterpriseListView
+      title="Timetable"
+      description="Scheduled lectures, lab sessions, and classroom allocations across departments."
+      resourceName="Timetable Entries"
+      columns={TIMETABLE_COLUMNS}
+    />
   );
 }
