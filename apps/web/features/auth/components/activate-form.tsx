@@ -1,9 +1,18 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { EyeIcon, EyeOffIcon, TriangleAlertIcon } from 'lucide-react';
+import {
+  AlertCircleIcon,
+  CheckCircle2Icon,
+  EyeIcon,
+  EyeOffIcon,
+  KeyRoundIcon,
+  ShieldAlertIcon,
+} from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { type ReactNode, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 
 import { LOGIN_PATH } from '../constants';
@@ -11,9 +20,10 @@ import { useActivateAccount } from '../hooks/use-activate-account';
 import { getActivateErrorMessage, isInvalidActivationTokenError } from '../lib/activate-error';
 import { type ActivateFormValues, activateFormSchema } from '../schemas/activate.schema';
 
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AuthErrorAlert } from './auth-error-alert';
+import { AuthLayout, AuthMessageCard } from './auth-layout';
+
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import {
   InputGroup,
@@ -31,10 +41,28 @@ interface ActivateFormProps {
 export function ActivateForm({ token }: ActivateFormProps) {
   if (token === undefined) {
     return (
-      <MessageCard title="Invalid activation link">
-        This link is missing its activation token. Open the link from your activation email again,
-        or contact your college administrator.
-      </MessageCard>
+      <AuthLayout
+        badge="ACCOUNT ACTIVATION"
+        title="Invalid activation link"
+        description={
+          <div className="space-y-0.5">
+            <p className="text-foreground/90 text-xs font-semibold">Missing security credentials</p>
+            <p className="text-muted-foreground text-[11px]">
+              HVPM College of Engineering and Technology
+            </p>
+          </div>
+        }
+      >
+        <AuthMessageCard
+          icon={AlertCircleIcon}
+          variant="destructive"
+          title="Missing activation token"
+          action={<GoToLoginButton variant="outline" />}
+        >
+          This link is missing its activation token. Please open the complete link from your
+          activation email again, or contact your college administrator for assistance.
+        </AuthMessageCard>
+      </AuthLayout>
     );
   }
 
@@ -44,6 +72,7 @@ export function ActivateForm({ token }: ActivateFormProps) {
 function ActivatePasswordForm({ token }: { token: string }) {
   const activate = useActivateAccount();
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
 
   const {
     register,
@@ -57,33 +86,68 @@ function ActivatePasswordForm({ token }: { token: string }) {
 
   if (activate.isSuccess) {
     return (
-      <MessageCard title="Account activated">
-        Your account was activated successfully. You can now sign in with your email and password.
-        <GoToLoginButton />
-      </MessageCard>
+      <AuthLayout
+        badge="ACCOUNT ACTIVATION"
+        title="Account activated"
+        description={
+          <div className="space-y-0.5">
+            <p className="text-foreground/90 text-xs font-semibold">
+              Institutional access established
+            </p>
+            <p className="text-muted-foreground text-[11px]">
+              HVPM College of Engineering and Technology
+            </p>
+          </div>
+        }
+      >
+        <AuthMessageCard
+          icon={CheckCircle2Icon}
+          variant="success"
+          title="Account activated successfully"
+          action={<GoToLoginButton />}
+        >
+          Your account was activated successfully. You can now sign in with your email address and
+          the new password you just configured.
+        </AuthMessageCard>
+      </AuthLayout>
     );
   }
 
   if (activate.isError && isInvalidActivationTokenError(activate.error)) {
     return (
-      <MessageCard title="Activation link not valid">
-        This activation link is invalid, has expired, or has already been used. If you have already
-        activated your account, sign in. Otherwise contact your college administrator.
-        <GoToLoginButton variant="outline" />
-      </MessageCard>
+      <AuthLayout
+        badge="ACCOUNT ACTIVATION"
+        title="Activation link expired"
+        description={
+          <div className="space-y-0.5">
+            <p className="text-foreground/90 text-xs font-semibold">Token expired or invalid</p>
+            <p className="text-muted-foreground text-[11px]">
+              HVPM College of Engineering and Technology
+            </p>
+          </div>
+        }
+      >
+        <AuthMessageCard
+          icon={ShieldAlertIcon}
+          variant="destructive"
+          title="Activation link expired or already used"
+          action={<GoToLoginButton variant="outline" />}
+        >
+          This activation link is invalid, has expired, or has already been used. If you have
+          already activated your account, you can proceed directly to sign in. Otherwise, contact
+          your college administrator to issue a new activation link.
+        </AuthMessageCard>
+      </AuthLayout>
     );
   }
 
   const isBusy = activate.isPending;
-  const passwordInputType = isPasswordVisible ? 'text' : 'password';
 
   const onSubmit = (values: ActivateFormValues) => {
-    // confirmPassword is a client-side check only and is not sent.
     activate.mutate(
       { token, password: values.password },
       {
         onSuccess: () => {
-          // Drop the password from form state once it is no longer needed.
           reset();
         },
       },
@@ -91,99 +155,166 @@ function ActivatePasswordForm({ token }: { token: string }) {
   };
 
   return (
-    <Card className="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle>Activate account</CardTitle>
-        <CardDescription>Set your password to activate your SPARK account.</CardDescription>
-      </CardHeader>
+    <AuthLayout
+      badge="ACCOUNT ACTIVATION"
+      title="Activate your account"
+      description={
+        <div className="space-y-0.5">
+          <p className="text-foreground/90 text-xs font-semibold">
+            Set your institutional password
+          </p>
+          <p className="text-muted-foreground text-[11px]">
+            HVPM College of Engineering and Technology
+          </p>
+        </div>
+      }
+      cardFooter={
+        <div className="text-muted-foreground flex items-center justify-between text-xs">
+          <span>Already activated your account?</span>
+          <Link
+            href={LOGIN_PATH}
+            className="text-primary font-semibold underline-offset-3 hover:underline"
+          >
+            Sign in
+          </Link>
+        </div>
+      }
+    >
+      <form
+        noValidate
+        aria-busy={isBusy}
+        onSubmit={(event) => {
+          void handleSubmit(onSubmit)(event);
+        }}
+        className="space-y-4"
+      >
+        <AnimatePresence mode="wait">
+          {activate.isError && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.2 }}
+            >
+              <AuthErrorAlert
+                title="Couldn't activate your account"
+                description={getActivateErrorMessage(activate.error)}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      <CardContent>
-        <form
-          noValidate
-          aria-busy={isBusy}
-          onSubmit={(event) => {
-            void handleSubmit(onSubmit)(event);
-          }}
-        >
-          <FieldGroup>
-            {activate.isError && (
-              <Alert variant="destructive">
-                <TriangleAlertIcon aria-hidden="true" />
-                <AlertTitle>Couldn&apos;t activate your account</AlertTitle>
-                <AlertDescription>{getActivateErrorMessage(activate.error)}</AlertDescription>
-              </Alert>
-            )}
+        <FieldGroup className="gap-3.5">
+          {/* New Password */}
+          <Field data-invalid={Boolean(errors.password)} className="gap-1.5">
+            <FieldLabel htmlFor="password" className="text-foreground text-xs font-medium">
+              New Password
+            </FieldLabel>
+            <InputGroup className="border-border/90 focus-within:ring-primary focus-within:border-primary h-11 rounded-md transition-all focus-within:ring-2">
+              <InputGroupInput
+                id="password"
+                type={isPasswordVisible ? 'text' : 'password'}
+                autoComplete="new-password"
+                aria-invalid={Boolean(errors.password)}
+                aria-describedby={errors.password ? 'password-error' : 'password-help'}
+                className="h-full px-3 text-xs"
+                {...register('password')}
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  size="icon-xs"
+                  type="button"
+                  aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}
+                  aria-pressed={isPasswordVisible}
+                  onClick={() => {
+                    setIsPasswordVisible((visible) => !visible);
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  {isPasswordVisible ? (
+                    <EyeOffIcon className="size-3.5" aria-hidden="true" />
+                  ) : (
+                    <EyeIcon className="size-3.5" aria-hidden="true" />
+                  )}
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
 
-            <Field data-invalid={Boolean(errors.password)}>
-              <FieldLabel htmlFor="password">Password</FieldLabel>
-              <InputGroup>
-                <InputGroupInput
-                  id="password"
-                  type={passwordInputType}
-                  autoComplete="new-password"
-                  aria-invalid={Boolean(errors.password)}
-                  aria-describedby={errors.password ? 'password-error' : 'password-help'}
-                  {...register('password')}
-                />
-                <InputGroupAddon align="inline-end">
-                  <InputGroupButton
-                    size="icon-xs"
-                    aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}
-                    aria-pressed={isPasswordVisible}
-                    onClick={() => {
-                      setIsPasswordVisible((visible) => !visible);
-                    }}
-                  >
-                    {isPasswordVisible ? (
-                      <EyeOffIcon aria-hidden="true" />
-                    ) : (
-                      <EyeIcon aria-hidden="true" />
-                    )}
-                  </InputGroupButton>
-                </InputGroupAddon>
-              </InputGroup>
-              <FieldDescription id="password-help">
-                At least 10 characters, with a lowercase letter, an uppercase letter and a digit.
-              </FieldDescription>
-              <FieldError id="password-error" errors={[errors.password]} />
-            </Field>
+            <FieldDescription
+              id="password-help"
+              className="text-muted-foreground flex items-start gap-1.5 pt-0.5 text-[11px] leading-normal"
+            >
+              <KeyRoundIcon
+                className="text-muted-foreground/80 mt-0.5 size-3.5 shrink-0"
+                aria-hidden="true"
+              />
+              <span>
+                At least 10 characters, with an uppercase letter, lowercase letter, and digit.
+              </span>
+            </FieldDescription>
 
-            <Field data-invalid={Boolean(errors.confirmPassword)}>
-              <FieldLabel htmlFor="confirmPassword">Confirm password</FieldLabel>
-              <InputGroup>
-                <InputGroupInput
-                  id="confirmPassword"
-                  type={passwordInputType}
-                  autoComplete="new-password"
-                  aria-invalid={Boolean(errors.confirmPassword)}
-                  aria-describedby={errors.confirmPassword ? 'confirm-password-error' : undefined}
-                  {...register('confirmPassword')}
-                />
-              </InputGroup>
-              <FieldError id="confirm-password-error" errors={[errors.confirmPassword]} />
-            </Field>
+            <FieldError id="password-error" errors={[errors.password]} />
+          </Field>
 
-            <Field>
-              <Button type="submit" size="lg" disabled={isBusy}>
-                {isBusy && <Spinner data-icon="inline-start" aria-hidden="true" />}
-                {isBusy ? 'Activating…' : 'Activate account'}
-              </Button>
-            </Field>
-          </FieldGroup>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
+          {/* Confirm Password */}
+          <Field data-invalid={Boolean(errors.confirmPassword)} className="gap-1.5">
+            <FieldLabel htmlFor="confirmPassword" className="text-foreground text-xs font-medium">
+              Confirm Password
+            </FieldLabel>
+            <InputGroup className="border-border/90 focus-within:ring-primary focus-within:border-primary h-11 rounded-md transition-all focus-within:ring-2">
+              <InputGroupInput
+                id="confirmPassword"
+                type={isConfirmPasswordVisible ? 'text' : 'password'}
+                autoComplete="new-password"
+                aria-invalid={Boolean(errors.confirmPassword)}
+                aria-describedby={errors.confirmPassword ? 'confirm-password-error' : undefined}
+                className="h-full px-3 text-xs"
+                {...register('confirmPassword')}
+              />
+              <InputGroupAddon align="inline-end">
+                <InputGroupButton
+                  size="icon-xs"
+                  type="button"
+                  aria-label={
+                    isConfirmPasswordVisible ? 'Hide confirm password' : 'Show confirm password'
+                  }
+                  aria-pressed={isConfirmPasswordVisible}
+                  onClick={() => {
+                    setIsConfirmPasswordVisible((visible) => !visible);
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  {isConfirmPasswordVisible ? (
+                    <EyeOffIcon className="size-3.5" aria-hidden="true" />
+                  ) : (
+                    <EyeIcon className="size-3.5" aria-hidden="true" />
+                  )}
+                </InputGroupButton>
+              </InputGroupAddon>
+            </InputGroup>
+            <FieldError id="confirm-password-error" errors={[errors.confirmPassword]} />
+          </Field>
 
-function MessageCard({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <Card className="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4 text-sm">{children}</CardContent>
-    </Card>
+          {/* Submit Button */}
+          <div className="pt-2">
+            <Button
+              type="submit"
+              disabled={isBusy}
+              className="bg-primary text-primary-foreground flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md text-xs font-semibold shadow-xs transition-colors hover:bg-[#115EA3] active:bg-[#0C4A80] disabled:cursor-not-allowed disabled:opacity-65"
+            >
+              {isBusy ? (
+                <>
+                  <Spinner data-icon="inline-start" className="size-3.5" aria-hidden="true" />
+                  <span>Activating account…</span>
+                </>
+              ) : (
+                <span>Activate account</span>
+              )}
+            </Button>
+          </div>
+        </FieldGroup>
+      </form>
+    </AuthLayout>
   );
 }
 
@@ -193,13 +324,18 @@ function GoToLoginButton({ variant }: { variant?: 'outline' }) {
   return (
     <Button
       type="button"
-      size="lg"
-      {...(variant !== undefined && { variant })}
+      className="h-10 w-full cursor-pointer rounded-md text-xs font-semibold"
+      {...(variant !== undefined
+        ? { variant }
+        : {
+            className:
+              'w-full h-10 font-semibold text-xs rounded-md bg-primary text-primary-foreground hover:bg-[#115EA3]',
+          })}
       onClick={() => {
         router.push(LOGIN_PATH);
       }}
     >
-      Go to login
+      Proceed to Sign In
     </Button>
   );
 }

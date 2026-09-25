@@ -7,7 +7,7 @@ import {
 } from '@/features/auth';
 
 export const metadata: Metadata = {
-  title: 'Set a new password',
+  title: 'Set New Password | S.P.A.R.K. College ERP',
   robots: { index: false, follow: false },
   // The URL carries a single-use secret; never leak it through Referer.
   referrer: 'no-referrer',

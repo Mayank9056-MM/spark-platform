@@ -1,12 +1,23 @@
 'use client';
 
-import { ModuleNotConnected } from '@/components/erp/module-not-connected';
-import { ModuleShell } from '@/components/erp/module-shell';
+import { EnterpriseListView } from '@/components/erp/enterprise-list-view';
+
+const ATTENDANCE_COLUMNS = [
+  { header: 'Session Title' },
+  { header: 'Faculty / Instructor' },
+  { header: 'Subject / Code' },
+  { header: 'Department' },
+  { header: 'Date & Time' },
+  { header: 'Session Status' },
+] as const;
 
 export default function AttendancePage() {
   return (
-    <ModuleShell title="Attendance" description="Attendance sessions and records.">
-      <ModuleNotConnected resource="Attendance records" />
-    </ModuleShell>
+    <EnterpriseListView
+      title="Attendance"
+      description="Lecture attendance sessions, student participation registers, and compliance records."
+      resourceName="Attendance Sessions"
+      columns={ATTENDANCE_COLUMNS}
+    />
   );
 }

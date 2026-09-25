@@ -1,5 +1,6 @@
 'use client';
 
+import { ArrowRightIcon } from 'lucide-react';
 import Link from 'next/link';
 
 import type { DashboardSection } from '../config/dashboard-sections';
@@ -44,35 +45,59 @@ export function DashboardSectionCard({ section }: DashboardSectionCardProps) {
   const Icon = section.icon;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Icon aria-hidden="true" className="size-4" />
-          {section.title}
-        </CardTitle>
-        <CardDescription>{section.description}</CardDescription>
+    <Card className="border-border/80 bg-card hover:border-primary/40 flex flex-col justify-between rounded-lg border shadow-xs transition-all duration-200 hover:shadow-sm">
+      <CardHeader className="space-y-2 pb-3">
+        <div className="flex items-start gap-3">
+          <div className="border-primary/20 bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-md border">
+            <Icon aria-hidden="true" className="size-4" />
+          </div>
+          <div className="min-w-0 space-y-0.5">
+            <CardTitle className="text-foreground truncate text-sm font-semibold">
+              {section.title}
+            </CardTitle>
+            <CardDescription className="text-muted-foreground line-clamp-2 text-xs leading-snug">
+              {section.description}
+            </CardDescription>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent>
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <Icon aria-hidden="true" />
+      <CardContent className="py-2">
+        <Empty className="border-border/60 bg-muted/20 border py-4">
+          <EmptyHeader className="space-y-1">
+            <EmptyMedia variant="icon" className="bg-muted/60 text-muted-foreground size-7">
+              <Icon aria-hidden="true" className="size-3.5" />
             </EmptyMedia>
-            <EmptyTitle>No data available yet</EmptyTitle>
-            <EmptyDescription>This module isn&apos;t connected to live data yet.</EmptyDescription>
+            <EmptyTitle className="text-foreground text-xs font-medium">
+              No live records yet
+            </EmptyTitle>
+            <EmptyDescription className="text-muted-foreground text-[11px]">
+              Module will populate as campus records are submitted.
+            </EmptyDescription>
           </EmptyHeader>
         </Empty>
       </CardContent>
       {(section.href !== undefined || section.actionHref !== undefined) && (
-        <CardFooter className="justify-between">
-          {section.href !== undefined && (
-            <Button variant="link" size="sm" className="px-0" render={<Link href={section.href} />}>
-              View
+        <CardFooter className="border-border/60 flex items-center justify-between border-t pt-3 pb-3">
+          {section.href !== undefined ? (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-foreground hover:border-primary/50 hover:text-primary h-8 gap-1.5 text-xs font-medium"
+              render={<Link href={section.href} />}
+            >
+              <span>Open Module</span>
+              <ArrowRightIcon className="size-3" aria-hidden="true" />
             </Button>
+          ) : (
+            <span />
           )}
           {section.actionHref !== undefined && section.actionPermission !== undefined && (
             <PermissionGuard require={section.actionPermission}>
-              <Button size="sm" render={<Link href={section.actionHref} />}>
+              <Button
+                size="sm"
+                className="h-8 text-xs font-medium"
+                render={<Link href={section.actionHref} />}
+              >
                 {section.actionLabel}
               </Button>
             </PermissionGuard>

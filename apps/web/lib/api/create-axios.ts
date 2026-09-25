@@ -16,7 +16,10 @@ export function createAxiosInstance(): AxiosInstance {
   return axios.create({
     baseURL: `${env.NEXT_PUBLIC_API_URL}${API_BASE_PATH}`,
     timeout: DEFAULT_TIMEOUT_MS,
-    headers: { Accept: 'application/json' },
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
 
     // Required for the browser to store and send the httpOnly refresh-token
     // cookie on cross-origin requests. Paired with cors({ credentials: true }).
