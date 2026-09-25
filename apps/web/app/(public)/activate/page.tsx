@@ -3,7 +3,7 @@ import { type Metadata } from 'next';
 import { ACTIVATION_TOKEN_PARAM, ActivateForm, resolveActivationToken } from '@/features/auth';
 
 export const metadata: Metadata = {
-  title: 'Activate account',
+  title: 'Activate Account | S.P.A.R.K. College ERP',
   robots: { index: false, follow: false },
   // The URL carries a single-use secret; never leak it through Referer.
   referrer: 'no-referrer',

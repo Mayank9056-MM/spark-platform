@@ -1,13 +1,20 @@
 import { API_ERROR_CODE, ApiClientError } from '@/lib/api/api-error';
 
+export interface StructuredAuthError {
+  title: string;
+  description: string;
+  action?: {
+    label: string;
+    href?: string;
+  };
+}
+
 const MESSAGE_BY_CODE = new Map<string, string>([
   [
     API_ERROR_CODE.INVALID_CREDENTIALS,
     'The email or password is incorrect. Check both and try again.',
   ],
   [
-    // The API embeds the unlock time in prose rather than a structured field,
-    // so no time is shown here instead of parsing it out of the message.
     API_ERROR_CODE.ACCOUNT_LOCKED,
     'Your account is locked after too many failed attempts. Try again later, or ask an administrator to unlock it.',
   ],
@@ -30,6 +37,89 @@ const FALLBACK_MESSAGE = 'Sign-in failed. Try again.';
 /** True when the credentials were rejected, so the form can clear the password field. */
 export function isInvalidCredentialsError(error: unknown): boolean {
   return error instanceof ApiClientError && error.code === API_ERROR_CODE.INVALID_CREDENTIALS;
+}
+
+/**
+ * Turns any login failure into structured title, description, and optional action.
+ * Powers compact enterprise message patterns.
+ */
+export function getStructuredLoginError(error: unknown): StructuredAuthError {
+  if (!(error instanceof ApiClientError)) {
+    return {
+      title: "Couldn't sign you in",
+      description: FALLBACK_MESSAGE,
+    };
+  }
+
+  if (error.kind === 'network') {
+    return {
+      title: 'Network connection error',
+      description: NETWORK_MESSAGE,
+    };
+  }
+
+  if (error.kind === 'timeout') {
+    return {
+      title: 'Request timed out',
+      description: TIMEOUT_MESSAGE,
+    };
+  }
+
+  if (error.kind === 'invalid-response') {
+    return {
+      title: 'Service unavailable',
+      description: withReference(SERVER_MESSAGE, error.requestId),
+    };
+  }
+
+  if (error.code === API_ERROR_CODE.ACCOUNT_PENDING_ACTIVATION) {
+    return {
+      title: "Your account isn't activated yet.",
+      description:
+        'Please check your email for the activation link dispatched by your college administrator to set your password.',
+    };
+  }
+
+  if (error.code === API_ERROR_CODE.ACCOUNT_LOCKED) {
+    return {
+      title: 'Account temporarily locked',
+      description:
+        'Your account has been locked after multiple consecutive unsuccessful attempts. Contact the IT Helpdesk.',
+    };
+  }
+
+  if (error.code === API_ERROR_CODE.INVALID_CREDENTIALS) {
+    return {
+      title: 'Invalid credentials',
+      description: 'The email address or password is incorrect. Check both and try again.',
+    };
+  }
+
+  if (error.code === API_ERROR_CODE.VALIDATION_ERROR) {
+    return {
+      title: 'Invalid form submission',
+      description: "The email or password couldn't be processed. Check both and try again.",
+    };
+  }
+
+  if (error.status === 429) {
+    return {
+      title: 'Sign-in attempts exceeded',
+      description: RATE_LIMITED_MESSAGE,
+    };
+  }
+
+  if (error.status >= 500) {
+    return {
+      title: 'Authentication service unavailable',
+      description: withReference(SERVER_MESSAGE, error.requestId),
+    };
+  }
+
+  return {
+    title: "Couldn't sign you in",
+    description: withReference(FALLBACK_MESSAGE, error.requestId),
+  };
 }
 
 /**
