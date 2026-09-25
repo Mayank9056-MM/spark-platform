@@ -11,6 +11,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from '@/components/ui/breadcrumb';
+import { useAuth } from '@/features/auth';
+import { hasRole } from '@/features/rbac';
 
 function toLabel(segment: string): string {
   return segment
@@ -22,6 +24,7 @@ function toLabel(segment: string): string {
 /** Derived straight from the URL under /app — no per-page config to keep in sync. */
 export function Breadcrumbs() {
   const pathname = usePathname();
+  const { roles } = useAuth();
   const segments = pathname
     .split('/')
     .filter(Boolean)
@@ -43,10 +46,11 @@ export function Breadcrumbs() {
       <BreadcrumbList>
         {crumbs.map(({ segment, href }, index) => {
           const isLast = index === crumbs.length - 1;
+          const isRestrictedForRole = href === '/app/student' && !hasRole(roles, 'student');
           return (
             <Fragment key={href}>
               <BreadcrumbItem>
-                {isLast ? (
+                {isLast || isRestrictedForRole ? (
                   <BreadcrumbPage>{toLabel(segment)}</BreadcrumbPage>
                 ) : (
                   <BreadcrumbLink href={href}>{toLabel(segment)}</BreadcrumbLink>
