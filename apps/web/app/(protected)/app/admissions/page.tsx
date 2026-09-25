@@ -1,32 +1,46 @@
 'use client';
 
-import { PlusIcon } from 'lucide-react';
+import { PlusIcon, UserPlusIcon } from 'lucide-react';
 import Link from 'next/link';
 
 import { PermissionGuard } from '@/components/auth/permission-guard';
-import { ModuleNotConnected } from '@/components/erp/module-not-connected';
-import { ModuleShell } from '@/components/erp/module-shell';
-import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/erp/page-header';
+import { Button } from '@/components/ui/button';
+import { AdmissionsTable } from '@/features/admissions/components/admissions-table';
 
 export default function AdmissionsPage() {
   return (
-    <ModuleShell
-      title="Admissions"
-      description="Student admission records for the current academic year."
-      actions={
-        <PermissionGuard require="admission:create">
-          <Link
-            href="/app/admissions/new"
-            data-slot="button"
-            className={buttonVariants({ size: 'sm' })}
-          >
-            <PlusIcon aria-hidden="true" />
-            Record admission
-          </Link>
-        </PermissionGuard>
-      }
-    >
-      <ModuleNotConnected resource="Admission records" />
-    </ModuleShell>
+    <div className="space-y-4">
+      <PageHeader
+        title="Student Admissions"
+        description="Institutional student admission registry, quota allocations, and enrollment confirmations."
+        actions={
+          <div className="flex items-center gap-2">
+            <PermissionGuard require="admission:create">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs font-semibold"
+                render={<Link href="/app/admissions/new" />}
+              >
+                <PlusIcon className="size-3.5" />
+                <span>Record Admission</span>
+              </Button>
+            </PermissionGuard>
+            <PermissionGuard require="student:create">
+              <Button
+                size="sm"
+                className="h-8 gap-1.5 text-xs font-semibold"
+                render={<Link href="/app/student/new" />}
+              >
+                <UserPlusIcon className="size-3.5" />
+                <span>Onboard Student (All-in-One)</span>
+              </Button>
+            </PermissionGuard>
+          </div>
+        }
+      />
+      <AdmissionsTable />
+    </div>
   );
 }
