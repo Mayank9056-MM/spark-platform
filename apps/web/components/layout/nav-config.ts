@@ -123,6 +123,12 @@ export const NAVIGATION: readonly NavItem[] = [
     section: 'Academic & Operations',
     permission: 'facultyAssignment:read',
   },
-  { label: 'Student Portal', href: '/app/student', icon: GraduationCapIcon, section: 'Portals' },
+  {
+    label: 'Student Portal',
+    href: '/app/student',
+    icon: GraduationCapIcon,
+    section: 'Portals',
+    roles: ['student'],
+  },
   { label: 'System Settings', href: '/app/settings', icon: SettingsIcon, section: 'System' },
 ] as const;
