@@ -6,8 +6,16 @@ export default defineConfig(
   mergeConfig(reactConfig, {
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, './src'),
+        '@': path.resolve(__dirname, './'),
       },
+    },
+    test: {
+      include: [
+        'app/**/*.{test,spec}.{ts,tsx}',
+        'components/**/*.{test,spec}.{ts,tsx}',
+        'features/**/*.{test,spec}.{ts,tsx}',
+        'lib/**/*.{test,spec}.{ts,tsx}',
+      ],
     },
   }),
 );
