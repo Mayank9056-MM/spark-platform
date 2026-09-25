@@ -19,7 +19,7 @@ function Command({ className, ...props }: React.ComponentProps<typeof CommandPri
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        'bg-popover text-popover-foreground flex size-full flex-col overflow-hidden rounded-none',
+        'bg-popover text-popover-foreground flex size-full flex-col overflow-hidden rounded-lg',
         className,
       )}
       {...props}
@@ -48,10 +48,13 @@ function CommandDialog({
         <DialogDescription>{description}</DialogDescription>
       </DialogHeader>
       <DialogContent
-        className={cn('top-1/3 translate-y-0 overflow-hidden rounded-none p-0', className)}
+        className={cn(
+          'border-border/80 top-1/4 max-w-lg translate-y-0 overflow-hidden rounded-lg border p-0 shadow-2xl',
+          className,
+        )}
         showCloseButton={showCloseButton}
       >
-        {children}
+        <Command>{children}</Command>
       </DialogContent>
     </Dialog>
   );
@@ -144,7 +147,7 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "group/command-item data-selected:bg-muted data-selected:text-foreground data-selected:*:[svg]:text-foreground relative flex cursor-default items-center gap-2 rounded-none px-2 py-2 text-xs outline-hidden select-none in-data-[slot=dialog-content]:rounded-none! data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "group/command-item data-selected:bg-muted data-selected:text-foreground data-selected:*:[svg]:text-foreground relative flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-xs outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       {...props}
