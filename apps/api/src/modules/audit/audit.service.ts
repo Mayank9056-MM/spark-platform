@@ -1,10 +1,19 @@
 import type { Prisma } from '@spark/database';
 import { getContext } from '@spark/shared/logger';
 
+import { ApiError } from '../../common/errors/ApiError.js';
+import { ErrorCode } from '../../common/errors/ErrorCodes.js';
 import { auditLogger } from '../../lib/logger.js';
 
+import { toAuditLogDTO, toAuditLogDTOList } from './audit.mapper.js';
 import { auditRepository } from './audit.repository.js';
-import type { RecordAuditInput } from './audit.types.js';
+import type {
+  AuditLogDTO,
+  ListAuditLogsFilters,
+  ListAuditLogsOptions,
+  ListAuditLogsResult,
+  RecordAuditInput,
+} from './audit.types.js';
 
 /**
  * Fills in requestId from the current AsyncLocalStorage log context when
@@ -63,4 +72,23 @@ export async function recordAuditTx(
 ): Promise<void> {
   const enriched = withRequestId(input);
   await auditRepository.create(enriched, tx);
+}
+
+export async function listAuditLogs(
+  filters: ListAuditLogsFilters,
+  options: ListAuditLogsOptions,
+): Promise<ListAuditLogsResult> {
+  const { logs, total } = await auditRepository.findMany(filters, options);
+  return {
+    logs: toAuditLogDTOList(logs),
+    total,
+  };
+}
+
+export async function getAuditLogById(id: string): Promise<AuditLogDTO> {
+  const log = await auditRepository.findById(id);
+  if (!log) {
+    throw ApiError.notFound(`Audit log record with ID "${id}" was not found.`, ErrorCode.NOT_FOUND);
+  }
+  return toAuditLogDTO(log);
 }
