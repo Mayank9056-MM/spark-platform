@@ -4,6 +4,7 @@ import {
   BookOpenIcon,
   CalendarClockIcon,
   ClipboardListIcon,
+  FileTextIcon,
   GraduationCapIcon,
   HelpCircleIcon,
   IdCardIcon,
@@ -31,12 +32,12 @@ import {
   CommandSeparator,
 } from '@/components/ui/command';
 import { useAuth } from '@/features/auth';
-import { hasAnyPermission, hasPermission } from '@/features/rbac';
+import { hasAnyPermission, hasAnyRole, hasPermission, hasRole } from '@/features/rbac';
 
 export function GlobalSearchDialog() {
   const [open, setOpen] = React.useState(false);
   const router = useRouter();
-  const { permissions } = useAuth();
+  const { permissions, roles } = useAuth();
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -177,18 +178,31 @@ export function GlobalSearchDialog() {
                 <span>User Accounts Management</span>
               </CommandItem>
             )}
-            <CommandItem onSelect={() => runCommand(() => router.push('/app/admin'))}>
-              <UserCogIcon className="text-primary size-4 shrink-0" />
-              <span>Administration Workspace</span>
-            </CommandItem>
-            <CommandItem onSelect={() => runCommand(() => router.push('/app/super-admin'))}>
-              <ShieldIcon className="text-primary size-4 shrink-0" />
-              <span>Super Administrator Console</span>
-            </CommandItem>
-            <CommandItem onSelect={() => runCommand(() => router.push('/app/student'))}>
-              <GraduationCapIcon className="text-primary size-4 shrink-0" />
-              <span>Student Academic Portal</span>
-            </CommandItem>
+            {hasAnyRole(roles, ['admin', 'super_admin']) && (
+              <CommandItem onSelect={() => runCommand(() => router.push('/app/admin'))}>
+                <UserCogIcon className="text-primary size-4 shrink-0" />
+                <span>Administration Workspace</span>
+              </CommandItem>
+            )}
+            {hasRole(roles, 'super_admin') && (
+              <CommandItem onSelect={() => runCommand(() => router.push('/app/super-admin'))}>
+                <ShieldIcon className="text-primary size-4 shrink-0" />
+                <span>Super Administrator Console</span>
+              </CommandItem>
+            )}
+            {hasPermission(permissions, 'auditLog:read') &&
+              hasAnyRole(roles, ['admin', 'super_admin']) && (
+                <CommandItem onSelect={() => runCommand(() => router.push('/app/audit-logs'))}>
+                  <FileTextIcon className="text-primary size-4 shrink-0" />
+                  <span>Audit &amp; Security Telemetry</span>
+                </CommandItem>
+              )}
+            {hasRole(roles, 'student') && (
+              <CommandItem onSelect={() => runCommand(() => router.push('/app/student'))}>
+                <GraduationCapIcon className="text-primary size-4 shrink-0" />
+                <span>Student Academic Portal</span>
+              </CommandItem>
+            )}
           </CommandGroup>
 
           <CommandSeparator />
