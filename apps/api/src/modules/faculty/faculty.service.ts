@@ -408,20 +408,24 @@ export class FacultyService {
     }
 
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      let session = await this.repo.findAttendanceSessionByLectureIdTx(tx, lectureId);
+      const existingSession = await this.repo.findAttendanceSessionByLectureIdTx(tx, lectureId);
+      let sessionId: string;
 
-      if (!session) {
-        session = await this.repo.createAttendanceSessionTx(tx, {
+      if (!existingSession) {
+        const newSession = await this.repo.createAttendanceSessionTx(tx, {
           lectureId,
           takenByUserId: userId,
         });
-      } else if (session.status === 'LOCKED') {
+        sessionId = newSession.id;
+      } else if (existingSession.status === 'LOCKED') {
         throw ApiError.conflict('This attendance session is locked and cannot be modified');
+      } else {
+        sessionId = existingSession.id;
       }
 
       for (const rec of input.records) {
         await this.repo.upsertAttendanceRecordTx(tx, {
-          attendanceSessionId: session!.id,
+          attendanceSessionId: sessionId,
           semesterEnrollmentId: rec.semesterEnrollmentId,
           status: rec.status,
           markedByUserId: userId,
@@ -429,14 +433,14 @@ export class FacultyService {
       }
 
       if (input.lockSession) {
-        await this.repo.lockAttendanceSessionTx(tx, session!.id);
+        await this.repo.lockAttendanceSessionTx(tx, sessionId);
       }
 
       await recordAuditTx(tx, {
         actorUserId: userId,
         action: 'UPDATE',
         entityType: AuditEntityType.ATTENDANCE,
-        entityId: session!.id,
+        entityId: sessionId,
         newValue: {
           lectureId,
           recordsMarked: input.records.length,
