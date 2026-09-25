@@ -71,7 +71,8 @@ export const NAVIGATION: readonly NavItem[] = [
     href: '/app/audit-logs',
     icon: FileTextIcon,
     section: 'Administration',
-    roles: ['super_admin'],
+    permission: 'auditLog:read',
+    roles: ['admin', 'super_admin'],
   },
   {
     label: 'Admissions',

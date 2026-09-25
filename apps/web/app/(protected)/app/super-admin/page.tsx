@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  AlertCircleIcon,
   ArrowRightIcon,
   ClockIcon,
   GraduationCapIcon,
@@ -446,14 +445,14 @@ export default function SuperAdminRoleCenterPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 pt-4 text-xs">
-              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-amber-900 dark:text-amber-200">
+              <div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3 text-emerald-900 dark:text-emerald-200">
                 <div className="flex items-start gap-2">
-                  <AlertCircleIcon className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <ShieldCheckIcon className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
                   <div className="space-y-1">
-                    <p className="text-xs font-semibold">Query Endpoint Staged</p>
-                    <p className="text-[11px] text-amber-800 dark:text-amber-300">
-                      Audit log ingestion is active in backend database models. The query controller
-                      endpoint is pending deployment in an upcoming core patch.
+                    <p className="text-xs font-semibold">Audit Query Service Online (v1)</p>
+                    <p className="text-[11px] text-emerald-800 dark:text-emerald-300">
+                      Live transaction journal and network telemetry are operational. Inspect
+                      complete mutation deltas and actor accountability records.
                     </p>
                   </div>
                 </div>
