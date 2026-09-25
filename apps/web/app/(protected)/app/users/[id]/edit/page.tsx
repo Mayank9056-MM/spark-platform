@@ -5,10 +5,10 @@ import { useParams } from 'next/navigation';
 
 import { PageHeader } from '@/components/erp/page-header';
 import { Button } from '@/components/ui/button';
-import { UserDetailCard } from '@/features/users/components/user-detail-card';
+import { UserForm } from '@/features/users/components/user-form';
 import { useUser } from '@/features/users/hooks/use-user';
 
-export default function UserDetailPage() {
+export default function EditUserPage() {
   const params = useParams<{ id: string }>();
   const userId = params?.id ?? '';
 
@@ -30,8 +30,7 @@ export default function UserDetailPage() {
           <AlertCircleIcon className="text-destructive mx-auto size-8" />
           <h2 className="text-foreground text-sm font-semibold">User Record Unavailable</h2>
           <p className="text-muted-foreground text-xs">
-            {error?.message ??
-              'The requested user could not be found or you do not have permission to view it.'}
+            {error?.message ?? 'The requested user could not be found.'}
           </p>
           <Button
             size="sm"
@@ -51,10 +50,10 @@ export default function UserDetailPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={user.fullName}
-        description="Institutional user record, security status, and assigned operational roles."
+        title={`Edit Profile: ${user.fullName}`}
+        description="Update institutional account metadata and display preferences."
       />
-      <UserDetailCard user={user} />
+      <UserForm mode="edit" user={user} />
     </div>
   );
 }
