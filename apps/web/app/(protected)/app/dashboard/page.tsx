@@ -6,6 +6,7 @@ import { Spinner } from '@/components/ui/spinner';
 import { useAuth } from '@/features/auth';
 import { DASHBOARD_SECTIONS, PermissionFilteredDashboard } from '@/features/dashboard';
 import { FacultyDashboardContent } from '@/features/faculty';
+import { HodDashboardContent } from '@/features/hod';
 import { hasAnyRole, hasRole } from '@/features/rbac';
 import { StudentDashboardContent } from '@/features/student';
 
@@ -38,8 +39,15 @@ export default function DashboardPage() {
     return <StudentDashboardContent />;
   }
 
+  const isHodRole =
+    hasRole(roles, 'hod') && !hasAnyRole(roles, ['admin', 'super_admin']);
+
+  if (isHodRole) {
+    return <HodDashboardContent />;
+  }
+
   const isFacultyRole =
-    hasAnyRole(roles, ['faculty', 'hod']) && !hasAnyRole(roles, ['admin', 'super_admin']);
+    hasRole(roles, 'faculty') && !hasAnyRole(roles, ['admin', 'super_admin']);
 
   if (isFacultyRole) {
     return <FacultyDashboardContent />;

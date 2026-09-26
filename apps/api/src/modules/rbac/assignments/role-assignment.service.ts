@@ -23,7 +23,7 @@ import type {
   RoleAssignmentId,
 } from './role-assignment.types.js';
 
-import { roleAssignmentLogger } from '@/lib/logger.js';
+import { roleAssignmentLogger } from '../../../lib/logger.js';
 
 /**
  * Business-logic layer for RoleAssignment.

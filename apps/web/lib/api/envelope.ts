@@ -49,6 +49,14 @@ export function parseSuccessEnvelope<TSchema extends z.ZodType>(
   const result = envelope.success ? schema.safeParse(envelope.data.data) : undefined;
 
   if (!result?.success) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.error('[parseSuccessEnvelope] Response schema validation failed:', {
+        status,
+        envelopeErrors: envelope.success ? null : envelope.error.issues,
+        schemaErrors: result?.error?.issues,
+        receivedData: envelope.success ? envelope.data.data : payload,
+      });
+    }
     throw new ApiClientError({
       kind: 'invalid-response',
       status,

@@ -8,7 +8,7 @@ import type { PermissionId } from '../permissions/permission.types.js';
 
 import { roleRepository } from './role.repository.js';
 
-import { roleLogger } from '@/lib/logger.js';
+import { roleLogger } from '../../../lib/logger.js';
 
 /**
  * Idempotent RBAC system-role bootstrap.
@@ -124,6 +124,7 @@ const SYSTEM_ROLES: readonly SystemRoleDefinition[] = [
       'attendance:update',
       'attendance:finalize',
       'user:read',
+      'student:read',
     ],
   },
   {

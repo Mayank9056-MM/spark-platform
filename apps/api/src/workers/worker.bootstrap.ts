@@ -6,7 +6,7 @@ import { logger } from '../lib/logger.js';
 
 import { createNotificationWorker, type NotificationWorker } from './notification.worker.js';
 
-import { ResendProvider } from '@/modules/notifications/notification.providers/resend.provider.js';
+import { ResendProvider } from '../modules/notifications/notification.providers/resend.provider.js';
 
 /**
  * Entry point of the background-worker process. It builds the concrete

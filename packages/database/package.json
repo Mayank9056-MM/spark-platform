@@ -3,16 +3,23 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./client": {
-      "types": "./src/generated/client/index.d.ts",
-      "default": "./src/generated/client/index.js"
+      "types": "./dist/generated/client/index.d.ts",
+      "import": "./dist/generated/client/index.js",
+      "default": "./dist/generated/client/index.js"
     }
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "prisma": "prisma",
     "db:generate": "prisma generate",
@@ -21,7 +28,9 @@
     "db:deploy": "prisma migrate deploy",
     "db:reset": "prisma migrate reset",
     "db:studio": "prisma studio",
-    "db:format": "prisma format"
+    "db:format": "prisma format",
+    "build": "tsc -p tsconfig.json && node -e \"const fs=require('fs'); fs.cpSync('src/generated/client', 'dist/generated/client', { recursive: true })\"",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
