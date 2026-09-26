@@ -8,4 +8,5 @@ export * from './components/faculty-today-schedule-card';
 export * from './components/faculty-assignments-card';
 export * from './components/faculty-timetable-card';
 export * from './components/faculty-attendance-roster-dialog';
+export * from './components/faculty-attendance-view';
 export * from './components/faculty-dashboard-content';

@@ -1,6 +1,4 @@
-// apps/api/src/modules/faculty/faculty.repository.ts
-
-import type { Prisma } from '@spark/database/client';
+import type { DayOfWeek, Prisma } from '@spark/database/client';
 
 import { prisma } from '../../lib/prisma.js';
 
@@ -132,6 +130,74 @@ export class FacultyRepository {
   }
 
   async findFacultyLectures(userId: string, filters: ListFacultyLecturesFilters = {}) {
+    // Auto-materialize scheduled lectures from active Timetable entries for the target day
+    try {
+      const targetDateStr = filters.date ?? new Date().toISOString().split('T')[0]!;
+      const targetDate = new Date(`${targetDateStr}T00:00:00.000Z`);
+      const DAY_OF_WEEK_BY_UTC_DAY: Readonly<Record<number, DayOfWeek>> = {
+        1: 'MONDAY',
+        2: 'TUESDAY',
+        3: 'WEDNESDAY',
+        4: 'THURSDAY',
+        5: 'FRIDAY',
+        6: 'SATURDAY',
+      };
+      const dayOfWeek = DAY_OF_WEEK_BY_UTC_DAY[targetDate.getUTCDay()];
+
+      if (dayOfWeek) {
+        const activeTimetables = await prisma.timetable.findMany({
+          where: {
+            facultyAssignment: {
+              facultyUserId: userId,
+            },
+            isCancelled: false,
+            dayOfWeek,
+            effectiveFrom: { lte: targetDate },
+            OR: [
+              { effectiveTo: null },
+              { effectiveTo: { gte: targetDate } },
+            ],
+          },
+          include: {
+            facultyAssignment: true,
+          },
+        });
+
+        for (const tt of activeTimetables) {
+          const existing = await prisma.lecture.findFirst({
+            where: {
+              subjectOfferingId: tt.subjectOfferingId,
+              scheduledDate: targetDate,
+              startTime: tt.startTime,
+            },
+          });
+
+          if (!existing) {
+            await prisma.lecture.create({
+              data: {
+                timetableId: tt.id,
+                subjectOfferingId: tt.subjectOfferingId,
+                subjectComponentId: tt.subjectComponentId,
+                facultyAssignmentId: tt.facultyAssignmentId,
+                facultyUserId: tt.facultyAssignment.facultyUserId,
+                roomId: tt.roomId,
+                semesterCatalogId: tt.semesterCatalogId,
+                academicYearId: tt.academicYearId,
+                scheduledDate: targetDate,
+                startTime: tt.startTime,
+                endTime: tt.endTime,
+                status: 'SCHEDULED',
+              },
+            }).catch(() => {
+              // Ignore potential duplicate or race condition
+            });
+          }
+        }
+      }
+    } catch {
+      // Continue safely if auto-materialization encounters any DB issue
+    }
+
     const where: Prisma.LectureWhereInput = {
       facultyUserId: userId,
     };

@@ -1,6 +1,6 @@
 import argon2 from 'argon2';
 
-import { env } from '@/config/env.js';
+import { env } from '../config/env.js';
 
 const ARGON2_OPTIONS: argon2.Options = {
   type: argon2.argon2id,

@@ -23,7 +23,7 @@ import type {
   UpdateRoleInput,
 } from './role.types.js';
 
-import { roleLogger } from '@/lib/logger.js';
+import { roleLogger } from '../../../lib/logger.js';
 
 /**
  * Business-logic layer for the Role domain.

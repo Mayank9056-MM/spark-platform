@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { runWithContext } from '@spark/shared/logger';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 
-import { httpLogger } from '@/lib/logger.js';
+import { httpLogger } from '../lib/logger.js';
 
 export interface RequestLoggerConfig {
   skipPaths?: string[];

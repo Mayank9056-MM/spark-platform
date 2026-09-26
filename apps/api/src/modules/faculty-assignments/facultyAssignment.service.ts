@@ -21,7 +21,7 @@ import type {
   ListFacultyAssignmentsResult,
 } from './facultyAssignment.types.js';
 
-import { facultyAssignmentLogger } from '@/lib/logger.js';
+import { facultyAssignmentLogger } from '../../lib/logger.js';
 
 /**
  * Business-logic layer for the FacultyAssignment domain.

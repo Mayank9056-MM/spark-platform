@@ -24,7 +24,7 @@ import type {
   UpdatePermissionInput,
 } from './permission.types.js';
 
-import { permissionLogger } from '@/lib/logger.js';
+import { permissionLogger } from '../../../lib/logger.js';
 
 /**
  * Business-logic layer for the Permission domain.

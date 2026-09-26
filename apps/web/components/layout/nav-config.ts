@@ -73,6 +73,7 @@ export const NAVIGATION: readonly NavItem[] = [
     icon: UsersIcon,
     section: 'Administration',
     permission: 'user:read',
+    roles: ['admin', 'super_admin'],
   },
   {
     label: 'Roles',

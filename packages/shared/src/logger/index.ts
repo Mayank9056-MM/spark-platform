@@ -1,5 +1,5 @@
 import { createCoreLogger } from './factory.js';
-import type { ILogger, LogMeta } from './types.ts';
+import type { ILogger, LogMeta } from './types.js';
 
 export { runWithContext, getContext } from './context.js';
 export { serializeError, normalizeMeta } from './serializers.js';

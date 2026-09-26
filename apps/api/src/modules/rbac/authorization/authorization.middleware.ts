@@ -9,8 +9,8 @@ import type {
   ScopeContext,
 } from './authorization.types.js';
 
-import { ApiError } from '@/common/errors/ApiError.js';
-import { ErrorCode } from '@/common/errors/ErrorCodes.js';
+import { ApiError } from '../../../common/errors/ApiError.js';
+import { ErrorCode } from '../../../common/errors/ErrorCodes.js';
 
 /**
  * HTTP adapter between Express and AuthorizationService.

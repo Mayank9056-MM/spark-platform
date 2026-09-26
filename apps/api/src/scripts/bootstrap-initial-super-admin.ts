@@ -73,9 +73,9 @@ import { roleAssignmentRepository } from '../modules/rbac/assignments/role-assig
 import { roleRepository } from '../modules/rbac/roles/role.repository.js';
 import { userRepository } from '../modules/user/user.repository.js';
 
-import { roleAssignmentLogger, userLogger } from '@/lib/logger.js';
-import { hashPassword } from '@/lib/password.js';
-import { prisma } from '@/lib/prisma.js';
+import { roleAssignmentLogger, userLogger } from '../lib/logger.js';
+import { hashPassword } from '../lib/password.js';
+import { prisma } from '../lib/prisma.js';
 
 const SUPER_ADMIN_ROLE_KEY = 'super_admin';
 

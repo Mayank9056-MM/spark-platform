@@ -22,7 +22,7 @@ import type {
   UpdateSemesterCatalogInput,
 } from './semester.types.js';
 
-import { AuditEntityType } from '@/modules/audit/audit.types.js';
+import { AuditEntityType } from '../../audit/audit.types.js';
 
 /**
  * Business-logic layer for the SemesterCatalog domain.

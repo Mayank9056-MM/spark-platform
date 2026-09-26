@@ -34,7 +34,10 @@ departmentRouter.get(
 
 departmentRouter.get(
   '/:id',
-  authorize('department', 'read'),
+  authorize('department', 'read', {
+    resourceIdParam: 'id',
+    getScope: (req) => ({ type: 'DEPARTMENT', departmentId: req.params.id as string }),
+  }),
   validate(departmentIdParamsSchema, 'params'),
   departmentController.getDepartmentById,
 );

@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { ZodType } from 'zod';
 
-import { ApiError } from '@/common/errors/ApiError.js';
-import { ErrorCode } from '@/common/errors/ErrorCodes.js';
+import { ApiError } from '../common/errors/ApiError.js';
+import { ErrorCode } from '../common/errors/ErrorCodes.js';
 
 type ValidationSource = 'body' | 'params' | 'query';
 

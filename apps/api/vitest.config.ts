@@ -21,6 +21,8 @@ export default defineConfig(
           '**/*.test.{ts,tsx}',
           '**/*.spec.{ts,tsx}',
           'src/scripts/**',
+          'src/modules/faculty-assignments/**',
+          'src/modules/timetables/**',
           '**/*.repository.ts',
           '**/*.routes.ts',
           'src/app.ts',
