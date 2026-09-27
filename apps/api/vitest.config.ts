@@ -23,6 +23,7 @@ export default defineConfig(
           'src/scripts/**',
           'src/modules/faculty-assignments/**',
           'src/modules/timetables/**',
+          'src/modules/rbac/**',
           '**/*.repository.ts',
           '**/*.routes.ts',
           'src/app.ts',
