@@ -30,11 +30,10 @@
  * destructive operation.
  */
 
-import { bootstrapPermissions } from '../modules/rbac/permissions/permission.bootstrap.js';
-import { bootstrapSystemRoles } from '../modules/rbac/roles/role.bootstrap.js';
-
 import { permissionLogger } from '../lib/logger.js';
 import { prisma } from '../lib/prisma.js';
+import { bootstrapPermissions } from '../modules/rbac/permissions/permission.bootstrap.js';
+import { bootstrapSystemRoles } from '../modules/rbac/roles/role.bootstrap.js';
 
 async function run(): Promise<void> {
   try {

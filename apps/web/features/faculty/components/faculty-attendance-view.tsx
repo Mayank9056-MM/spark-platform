@@ -3,8 +3,9 @@
 import { Calendar, Clock, Filter, Lock, UserCheck } from 'lucide-react';
 import { useState } from 'react';
 
-import { FacultyAttendanceRosterDialog } from './faculty-attendance-roster-dialog';
 import { useFacultyLectures } from '../hooks/use-faculty';
+
+import { FacultyAttendanceRosterDialog } from './faculty-attendance-roster-dialog';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

@@ -1,7 +1,7 @@
 'use client';
 
-import * as React from 'react';
 import { AlertCircle } from 'lucide-react';
+import * as React from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -66,22 +66,14 @@ export default function AttendancePage() {
 
   const isStudentOnly =
     hasRole(roles, 'student') &&
-    !hasAnyRole(roles, [
-      'admin',
-      'super_admin',
-      'faculty',
-      'hod',
-      'principal',
-      'officer',
-    ]);
+    !hasAnyRole(roles, ['admin', 'super_admin', 'faculty', 'hod', 'principal', 'officer']);
 
   if (isStudentOnly) {
     return <StudentAttendanceSection />;
   }
 
   const isFacultyOnly =
-    hasRole(roles, 'faculty') &&
-    !hasAnyRole(roles, ['admin', 'super_admin', 'hod', 'principal']);
+    hasRole(roles, 'faculty') && !hasAnyRole(roles, ['admin', 'super_admin', 'hod', 'principal']);
 
   if (isFacultyOnly) {
     return <FacultyAttendanceView />;

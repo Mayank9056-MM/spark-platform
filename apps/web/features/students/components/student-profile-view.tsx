@@ -8,7 +8,9 @@ import {
   CopyIcon,
   GraduationCapIcon,
   IdCardIcon,
+  Loader2Icon,
   LogOutIcon,
+  PencilIcon,
   ShieldCheckIcon,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -16,6 +18,7 @@ import * as React from 'react';
 
 import { useCancelStudentEnrollment } from '../hooks/use-cancel-student-enrollment';
 import { useStudentEnrollment } from '../hooks/use-student-enrollment';
+import { useUpdateStudentEnrollment } from '../hooks/use-update-student-enrollment';
 import { useWithdrawStudentEnrollment } from '../hooks/use-withdraw-student-enrollment';
 
 import { StudentStatusBadge } from './student-status-badge';
@@ -36,12 +39,22 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Field, FieldLabel } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from '@/components/ui/toast';
 import { useProgram } from '@/features/academics/hooks/use-program';
 import { useAdmission } from '@/features/admissions/hooks/use-admission';
+import { StudentSemesterEnrollmentsCard } from '@/features/semester-enrollments';
 import { useUser } from '@/features/users/hooks/use-user';
 import { formatDate, formatDateTime } from '@/lib/formatters';
 
@@ -68,6 +81,10 @@ export function StudentProfileView({ enrollmentId }: StudentProfileViewProps) {
 
   const cancelMutation = useCancelStudentEnrollment(enrollmentId);
   const withdrawMutation = useWithdrawStudentEnrollment(enrollmentId);
+  const updateEnrollmentMutation = useUpdateStudentEnrollment();
+
+  const [editRollOpen, setEditRollOpen] = React.useState(false);
+  const [newRollNumber, setNewRollNumber] = React.useState('');
 
   const copyUuid = async (text: string) => {
     try {
@@ -149,6 +166,39 @@ export function StudentProfileView({ enrollmentId }: StudentProfileViewProps) {
         onError: (err) => {
           toast.add({
             title: 'Failed to record withdrawal',
+            description: err.message,
+            type: 'error',
+          });
+        },
+      },
+    );
+  };
+
+  const handleUpdateRollNumber = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRollNumber.trim()) {
+      toast.add({
+        title: 'Roll number required',
+        description: 'Please provide a valid roll number.',
+        type: 'error',
+      });
+      return;
+    }
+
+    updateEnrollmentMutation.mutate(
+      { id: enrollmentId, payload: { rollNumber: newRollNumber.trim() } },
+      {
+        onSuccess: () => {
+          toast.add({
+            title: 'Roll number updated',
+            description: `Roll number updated to ${newRollNumber.trim()}.`,
+            type: 'success',
+          });
+          setEditRollOpen(false);
+        },
+        onError: (err) => {
+          toast.add({
+            title: 'Failed to update roll number',
             description: err.message,
             type: 'error',
           });
@@ -320,6 +370,72 @@ export function StudentProfileView({ enrollmentId }: StudentProfileViewProps) {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+              </PermissionGuard>
+
+              <PermissionGuard require="student:update">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs font-semibold"
+                  onClick={() => {
+                    setNewRollNumber(enrollment.rollNumber);
+                    setEditRollOpen(true);
+                  }}
+                >
+                  <PencilIcon className="size-3.5" />
+                  <span>Edit Roll Number</span>
+                </Button>
+
+                <Dialog open={editRollOpen} onOpenChange={setEditRollOpen}>
+                  <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                      <DialogTitle className="text-sm font-semibold">
+                        Update Roll Number
+                      </DialogTitle>
+                      <DialogDescription className="text-xs">
+                        Update the institutional roll number for this student enrollment.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleUpdateRollNumber} className="space-y-4 pt-2">
+                      <Field>
+                        <FieldLabel className="text-xs font-medium">Roll Number *</FieldLabel>
+                        <Input
+                          value={newRollNumber}
+                          onChange={(e) => setNewRollNumber(e.target.value)}
+                          placeholder="e.g. 23CS001"
+                          className="h-9 font-mono text-xs"
+                          disabled={updateEnrollmentMutation.isPending}
+                          required
+                        />
+                      </Field>
+                      <DialogFooter className="gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs"
+                          onClick={() => setEditRollOpen(false)}
+                          disabled={updateEnrollmentMutation.isPending}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          size="sm"
+                          className="h-8 gap-1.5 text-xs font-semibold"
+                          disabled={updateEnrollmentMutation.isPending}
+                        >
+                          {updateEnrollmentMutation.isPending ? (
+                            <Loader2Icon className="size-3.5 animate-spin" />
+                          ) : (
+                            <PencilIcon className="size-3.5" />
+                          )}
+                          <span>Save Changes</span>
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
               </PermissionGuard>
             </>
           )}
@@ -528,6 +644,14 @@ export function StudentProfileView({ enrollmentId }: StudentProfileViewProps) {
               </CardContent>
             </Card>
           )}
+
+          <StudentSemesterEnrollmentsCard
+            studentEnrollmentId={enrollment.id}
+            curriculumVersionId={enrollment.curriculumVersionId}
+            studentRollNumber={enrollment.rollNumber}
+            isEnrollmentActive={canModifyStatus}
+            entrySemesterCatalogId={admission?.entrySemesterCatalogId}
+          />
         </div>
       </div>
     </div>

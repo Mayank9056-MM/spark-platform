@@ -176,7 +176,7 @@ export class HodService {
         id: department.id,
         name: department.name,
         code: department.code,
-        status: (department as any).status ?? 'ACTIVE',
+        status: 'ACTIVE',
       },
       academicYear: {
         id: activeYear.id,
@@ -254,12 +254,14 @@ export class HodService {
       },
       componentType: entry.facultyAssignment.subjectComponent.type,
       program: {
-        id: entry.facultyAssignment.subjectOffering.subject.semesterCatalog.curriculumVersion.program.id,
-        name: entry.facultyAssignment.subjectOffering.subject.semesterCatalog.curriculumVersion.program.name,
-        code: entry.facultyAssignment.subjectOffering.subject.semesterCatalog.curriculumVersion.program.code,
+        id: entry.facultyAssignment.subjectOffering.subject.semesterCatalog.curriculumVersion
+          .program.id,
+        name: entry.facultyAssignment.subjectOffering.subject.semesterCatalog.curriculumVersion
+          .program.name,
+        code: entry.facultyAssignment.subjectOffering.subject.semesterCatalog.curriculumVersion
+          .program.code,
       },
-      semesterNumber:
-        entry.facultyAssignment.subjectOffering.subject.semesterCatalog.number,
+      semesterNumber: entry.facultyAssignment.subjectOffering.subject.semesterCatalog.number,
       faculty: {
         id: entry.facultyAssignment.faculty.id,
         firstName: entry.facultyAssignment.faculty.firstName,
@@ -298,8 +300,7 @@ export class HodService {
       throw ApiError.notFound('Subject offering not found');
     }
 
-    const offeringDeptId =
-      offering.subject.semesterCatalog.curriculumVersion.program.departmentId;
+    const offeringDeptId = offering.subject.semesterCatalog.curriculumVersion.program.departmentId;
     if (offeringDeptId !== departmentId) {
       throw ApiError.forbidden(
         'You cannot assign faculty to subjects outside your department',
@@ -308,10 +309,7 @@ export class HodService {
     }
 
     // 2. Verify faculty member is assigned to this department
-    const facultyRole = await this.repo.findFacultyMemberInDept(
-      input.facultyUserId,
-      departmentId,
-    );
+    const facultyRole = await this.repo.findFacultyMemberInDept(input.facultyUserId, departmentId);
     if (!facultyRole) {
       throw ApiError.forbidden(
         'The specified faculty member does not belong to your department',
@@ -335,10 +333,7 @@ export class HodService {
   /**
    * Allows an HOD to schedule a timetable slot for a department faculty assignment.
    */
-  async createTimetableEntry(
-    actorUserId: string,
-    input: CreateDepartmentTimetableInput,
-  ) {
+  async createTimetableEntry(actorUserId: string, input: CreateDepartmentTimetableInput) {
     const { departmentId } = await this.getDepartmentScopeOrThrow(actorUserId);
 
     // Verify assignment belongs to department if repository method available

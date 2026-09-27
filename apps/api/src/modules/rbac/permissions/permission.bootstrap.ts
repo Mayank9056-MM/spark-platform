@@ -1,11 +1,10 @@
 // apps/api/src/modules/rbac/permissions/permission.bootstrap.ts
 
+import { permissionLogger } from '../../../lib/logger.js';
 import { prisma } from '../../../lib/prisma.js';
 
 import { PERMISSION_CATALOG } from './permission.constants.js';
 import { permissionRepository } from './permission.repository.js';
-
-import { permissionLogger } from '../../../lib/logger.js';
 
 /**
  * Idempotent RBAC permission bootstrap.

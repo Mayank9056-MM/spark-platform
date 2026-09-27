@@ -2,15 +2,15 @@
 
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
 
+import { ApiError } from '../../../common/errors/ApiError.js';
+import { ErrorCode } from '../../../common/errors/ErrorCodes.js';
+
 import { authorizationService } from './authorization.service.js';
 import type {
   AuthorizationAction,
   AuthorizationResource,
   ScopeContext,
 } from './authorization.types.js';
-
-import { ApiError } from '../../../common/errors/ApiError.js';
-import { ErrorCode } from '../../../common/errors/ErrorCodes.js';
 
 /**
  * HTTP adapter between Express and AuthorizationService.

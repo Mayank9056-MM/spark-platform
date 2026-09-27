@@ -264,7 +264,7 @@ export interface HodCourseOfferingDTO {
 }
 
 export interface HodTimetableSchedulingOptionsDTO {
-  facultyAssignments: Array<{
+  facultyAssignments: {
     id: string;
     faculty: {
       id: string;
@@ -289,18 +289,18 @@ export interface HodTimetableSchedulingOptionsDTO {
       name: string;
     };
     semesterNumber: number;
-  }>;
-  rooms: Array<{
+  }[];
+  rooms: {
     id: string;
     name: string;
     type: string;
     capacity: number;
-  }>;
-  timeSlots: Array<{
+  }[];
+  timeSlots: {
     id: string;
     dayOfWeek: 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY';
     startTime: string;
     endTime: string;
     label: string;
-  }>;
+  }[];
 }

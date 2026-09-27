@@ -1,11 +1,23 @@
+import { z } from 'zod';
+
 import {
   type CreateProgramFormValues,
   type Program,
   programSchema,
+  type UpdateProgramFormValues,
 } from '../schemas/academic.schema';
 
 import type { PaginatedResult } from '@/lib/api/envelope';
 import { apiPaginatedRequest, apiRequest } from '@/lib/api/http-client';
+
+const deleteResponseSchema = z
+  .null()
+  .or(z.undefined())
+  .or(
+    z.object({
+      success: z.boolean().optional(),
+    }),
+  );
 
 export interface ListProgramsParams {
   page?: number;
@@ -43,6 +55,28 @@ export function createProgram(
   return apiRequest('/academic/programs', programSchema, {
     method: 'POST',
     body: payload,
+    signal,
+  });
+}
+
+export function updateProgram(
+  id: string,
+  payload: UpdateProgramFormValues,
+  signal?: AbortSignal,
+): Promise<Program> {
+  return apiRequest(`/academic/programs/${id}`, programSchema, {
+    method: 'PATCH',
+    body: payload,
+    signal,
+  });
+}
+
+export function deleteProgram(
+  id: string,
+  signal?: AbortSignal,
+): Promise<{ success?: boolean } | null | undefined> {
+  return apiRequest(`/academic/programs/${id}`, deleteResponseSchema, {
+    method: 'DELETE',
     signal,
   });
 }
