@@ -36,6 +36,7 @@ import {
   InputGroupInput,
 } from '@/components/ui/input-group';
 import { Spinner } from '@/components/ui/spinner';
+import { ApiClientError } from '@/lib/api/api-error';
 
 interface LoginFormProps {
   /** Already-sanitised, same-site destination (see resolveSafeRedirect). */
@@ -50,6 +51,7 @@ export function LoginForm({ redirectTo, initialActivated, initialReset }: LoginF
   const login = useLogin();
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState<number | null>(null);
 
   // Strip ?activated=1 / ?reset=1 from visible URL once captured into props
   useEffect(() => {
@@ -62,6 +64,25 @@ export function LoginForm({ redirectTo, initialActivated, initialReset }: LoginF
     window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
   }, [initialActivated, initialReset]);
 
+  // Tick countdown timer down every second when rate-limited
+  useEffect(() => {
+    if (retryCountdown === null || retryCountdown <= 0) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setRetryCountdown((current) => {
+        if (current === null || current <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [retryCountdown]);
+
   const {
     register,
     handleSubmit,
@@ -73,11 +94,14 @@ export function LoginForm({ redirectTo, initialActivated, initialReset }: LoginF
     defaultValues: { email: '', password: '' },
   });
 
-  const isBusy = login.isPending || login.isSuccess;
+  const isRateLimited = retryCountdown !== null && retryCountdown > 0;
+  const isBusy = login.isPending || login.isSuccess || isRateLimited;
 
   const onSubmit = (values: LoginFormValues) => {
     login.mutate(values, {
       onSuccess: () => {
+        queryClient.clear();
+
         if (redirectTo !== DEFAULT_POST_LOGIN_PATH) {
           router.replace(redirectTo);
           return;
@@ -97,11 +121,26 @@ export function LoginForm({ redirectTo, initialActivated, initialReset }: LoginF
           resetField('password');
           setFocus('password');
         }
+        if (error instanceof ApiClientError && error.status === 429) {
+          const seconds = error.retryAfter ?? 60;
+          setRetryCountdown(seconds > 0 ? seconds : 0);
+        }
       },
     });
   };
 
-  const structuredError = login.isError ? getStructuredLoginError(login.error) : null;
+  const rawStructuredError = login.isError ? getStructuredLoginError(login.error) : null;
+  const structuredError = rawStructuredError
+    ? {
+        ...rawStructuredError,
+        description:
+          isRateLimited && retryCountdown !== null
+            ? `Too many sign-in attempts. Please try again in ${retryCountdown} second${retryCountdown === 1 ? '' : 's'}.`
+            : retryCountdown === 0
+              ? 'You may now retry signing in.'
+              : rawStructuredError.description,
+      }
+    : null;
 
   return (
     <>
@@ -285,10 +324,14 @@ export function LoginForm({ redirectTo, initialActivated, initialReset }: LoginF
                 className="bg-primary text-primary-foreground flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md text-xs font-semibold shadow-xs transition-colors hover:bg-[#115EA3] active:bg-[#0C4A80] disabled:cursor-not-allowed disabled:opacity-65"
               >
                 {isBusy ? (
-                  <>
-                    <Spinner data-icon="inline-start" className="size-3.5" aria-hidden="true" />
-                    <span>Signing in…</span>
-                  </>
+                  isRateLimited ? (
+                    <span>Retry in {retryCountdown}s</span>
+                  ) : (
+                    <>
+                      <Spinner data-icon="inline-start" className="size-3.5" aria-hidden="true" />
+                      <span>Signing in…</span>
+                    </>
+                  )
                 ) : (
                   <>
                     <span>Sign in</span>

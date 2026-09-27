@@ -29,6 +29,7 @@ interface ApiClientErrorInit {
   status?: number;
   code?: string | undefined;
   requestId?: string | undefined;
+  retryAfter?: number | undefined;
   cause?: unknown;
 }
 
@@ -42,14 +43,24 @@ export class ApiClientError extends Error {
   readonly status: number;
   readonly code: string | undefined;
   readonly requestId: string | undefined;
+  readonly retryAfter: number | undefined;
 
-  constructor({ kind, message, status = 0, code, requestId, cause }: ApiClientErrorInit) {
+  constructor({
+    kind,
+    message,
+    status = 0,
+    code,
+    requestId,
+    retryAfter,
+    cause,
+  }: ApiClientErrorInit) {
     super(message, { cause });
     this.name = 'ApiClientError';
     this.kind = kind;
     this.status = status;
     this.code = code;
     this.requestId = requestId;
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -81,6 +92,7 @@ export function apiErrorFromResponse(
   status: number,
   body: unknown,
   cause?: unknown,
+  retryAfter?: number,
 ): ApiClientError {
   const parsed = errorBodySchema.safeParse(body);
   const details = parsed.success ? parsed.data : undefined;
@@ -91,6 +103,7 @@ export function apiErrorFromResponse(
     message: details?.error?.message ?? details?.message ?? `Request failed with status ${status}`,
     code: details?.error?.code,
     requestId: details?.error?.requestId,
+    retryAfter,
     cause,
   });
 }

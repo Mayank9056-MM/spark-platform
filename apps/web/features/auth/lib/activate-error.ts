@@ -39,6 +39,9 @@ export function getActivateErrorMessage(error: unknown): string {
 
   // The rate limiter answers 429 without an error code.
   if (error.status === 429) {
+    if (error.retryAfter !== undefined && error.retryAfter > 0) {
+      return `Too many attempts. Please try again in ${error.retryAfter} second${error.retryAfter === 1 ? '' : 's'}.`;
+    }
     return RATE_LIMITED_MESSAGE;
   }
 
