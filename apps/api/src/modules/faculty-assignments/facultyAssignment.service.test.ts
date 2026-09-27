@@ -29,6 +29,7 @@ vi.mock('./facultyAssignment.repository.js', () => ({
   },
 }));
 
+import { ApiError } from '../../common/errors/ApiError.js';
 import { ErrorCode } from '../../common/errors/ErrorCodes.js';
 import { authorizationService } from '../rbac/authorization/authorization.service.js';
 
