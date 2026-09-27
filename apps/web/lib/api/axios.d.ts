@@ -12,5 +12,14 @@ declare module 'axios' {
      * replayed at most once and a persistent 401 cannot loop.
      */
     hasRetried?: boolean;
+    /**
+     * The token refresh generation at which this request was dispatched.
+     * Prevents late-arriving 401 responses from triggering redundant refreshes.
+     */
+    requestGeneration?: number;
+    /**
+     * Timestamp (ms) when the request was dispatched.
+     */
+    requestStartedAt?: number;
   }
 }

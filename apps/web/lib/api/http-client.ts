@@ -1,7 +1,7 @@
 import axios, { type AxiosResponse } from 'axios';
 import { type z } from 'zod';
 
-import { refreshAccessToken } from '../auth/refresh-session';
+import { getRefreshGeneration, refreshAccessToken } from '../auth/refresh-session';
 import { expireSession } from '../auth/session-expiry';
 
 import { API_ERROR_CODE, ApiClientError } from './api-error';
@@ -15,6 +15,12 @@ import { toApiClientError } from './normalize-error';
  * schema; exporting the raw instance would invite unvalidated calls.
  */
 const client = createAxiosInstance();
+
+client.interceptors.request.use((config) => {
+  config.requestGeneration ??= getRefreshGeneration();
+  config.requestStartedAt ??= Date.now();
+  return config;
+});
 
 client.interceptors.response.use(undefined, handleResponseError);
 
@@ -51,7 +57,7 @@ async function handleResponseError(error: unknown): Promise<AxiosResponse<unknow
   }
 
   try {
-    await refreshAccessToken();
+    await refreshAccessToken(config.requestGeneration);
   } catch (refreshError) {
     if (refreshError instanceof ApiClientError && refreshError.status === 401) {
       expireSession();
@@ -59,7 +65,12 @@ async function handleResponseError(error: unknown): Promise<AxiosResponse<unknow
     throw refreshError;
   }
 
-  return client.request<unknown>({ ...config, hasRetried: true });
+  return client.request<unknown>({
+    ...config,
+    hasRetried: true,
+    requestGeneration: getRefreshGeneration(),
+    requestStartedAt: Date.now(),
+  });
 }
 
 export interface ApiRequestOptions {
