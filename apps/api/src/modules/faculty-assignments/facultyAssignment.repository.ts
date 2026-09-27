@@ -59,6 +59,31 @@ export class FacultyAssignmentRepository {
     return prisma.facultyAssignment.findUnique({ where: { id } });
   }
 
+  async findByIdWithDetails(id: string) {
+    return prisma.facultyAssignment.findUnique({
+      where: { id },
+      include: {
+        subjectOffering: {
+          include: {
+            subject: {
+              include: {
+                semesterCatalog: {
+                  include: {
+                    curriculumVersion: {
+                      include: {
+                        program: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
   async findByIdTx(tx: Db, id: string): Promise<FacultyAssignment | null> {
     return tx.facultyAssignment.findUnique({ where: { id } });
   }

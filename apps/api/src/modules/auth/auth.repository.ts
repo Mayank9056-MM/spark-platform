@@ -132,6 +132,13 @@ export class AuthRepository {
     });
   }
 
+  async findActiveSessionWithUser(sessionId: string): Promise<(Session & { user: User }) | null> {
+    return prisma.session.findFirst({
+      where: { id: sessionId, revokedAt: null, expiresAt: { gt: new Date() } },
+      include: { user: true },
+    });
+  }
+
   async listActiveSessionsForUser(userId: string): Promise<Session[]> {
     return prisma.session.findMany({
       where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
@@ -153,7 +160,7 @@ export class AuthRepository {
   }
 
   async revokeSession(sessionId: string): Promise<void> {
-    await prisma.session.update({
+    await prisma.session.updateMany({
       where: { id: sessionId },
       data: { revokedAt: new Date() },
     });

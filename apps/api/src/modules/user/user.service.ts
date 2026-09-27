@@ -168,7 +168,9 @@ export class UserService {
       });
     });
 
-    userLogger.info('User archived', { userId: existing.id, actorUserId });
+    await authService.logoutAllDevices(existing.id);
+
+    userLogger.info('User archived and sessions revoked', { userId: existing.id, actorUserId });
   }
 
   /**

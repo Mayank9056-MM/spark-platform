@@ -4,9 +4,11 @@ import type { Prisma } from '@spark/database/client';
 
 import { ApiError } from '../../common/errors/ApiError.js';
 import { ErrorCode } from '../../common/errors/ErrorCodes.js';
+import { facultyAssignmentLogger } from '../../lib/logger.js';
 import { prisma } from '../../lib/prisma.js';
 import { recordAuditTx } from '../audit/audit.service.js';
 import { AuditEntityType } from '../audit/audit.types.js';
+import { authorizationService } from '../rbac/authorization/authorization.service.js';
 import { subjectOfferingRepository } from '../subject-offerings/subjectOffering.repository.js';
 import { userRepository } from '../user/user.repository.js';
 
@@ -20,8 +22,6 @@ import type {
   ListFacultyAssignmentsOptions,
   ListFacultyAssignmentsResult,
 } from './facultyAssignment.types.js';
-
-import { facultyAssignmentLogger } from '../../lib/logger.js';
 
 /**
  * Business-logic layer for the FacultyAssignment domain.
@@ -156,6 +156,50 @@ export class FacultyAssignmentService {
         );
       }
 
+      // Scope validation: Ensure actor has authority over the department of the target offering
+      const subjectWithDept = await tx.subject.findUnique({
+        where: { id: subjectOffering.subjectId },
+        include: {
+          semesterCatalog: {
+            include: {
+              curriculumVersion: {
+                include: {
+                  program: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const targetDepartmentId =
+        subjectWithDept?.semesterCatalog.curriculumVersion.program.departmentId;
+
+      if (targetDepartmentId) {
+        const collegeCheck = await authorizationService.check({
+          subject: { userId: actorUserId },
+          resource: 'facultyAssignment',
+          action: 'create',
+          scope: { type: 'COLLEGE' },
+        });
+
+        if (!collegeCheck.decision.allowed) {
+          const deptCheck = await authorizationService.check({
+            subject: { userId: actorUserId },
+            resource: 'facultyAssignment',
+            action: 'create',
+            scope: { type: 'DEPARTMENT', departmentId: targetDepartmentId },
+          });
+
+          if (!deptCheck.decision.allowed) {
+            throw ApiError.forbidden(
+              'You cannot assign faculty to subjects outside your department',
+              ErrorCode.FORBIDDEN_SCOPE,
+            );
+          }
+        }
+      }
+
       // Read-only — per user.repository.ts's own doc comment, read
       // methods intentionally use the singleton client since there is
       // nothing to keep atomic with a read; no findByIdTx exists.
@@ -209,12 +253,82 @@ export class FacultyAssignmentService {
     return toFacultyAssignmentDTO(created);
   }
 
-  /** Not audited — routine read. */
-  async getFacultyAssignmentById(id: FacultyAssignmentId): Promise<FacultyAssignmentDTO> {
-    const assignment = await facultyAssignmentRepository.findById(id);
+  /**
+   * Retrieves a faculty assignment by ID with resource-level authorization.
+   *
+   * Authorization rules:
+   * 1. COLLEGE-level scope (Admin, Super Admin, Principal): Allowed for any assignment.
+   * 2. DEPARTMENT-level scope (HOD): Allowed for assignments in their assigned department if they have management authority (facultyAssignment:create).
+   * 3. Faculty ownership: Regular faculty holding facultyAssignment:read without manage authority can ONLY access assignments where facultyUserId matches actorUserId.
+   *
+   * Cross-department and unauthorized cross-faculty access returns 403 FORBIDDEN_SCOPE.
+   */
+  async getFacultyAssignmentById(
+    actorUserId: string,
+    id: FacultyAssignmentId,
+  ): Promise<FacultyAssignmentDTO> {
+    const assignment = await facultyAssignmentRepository.findByIdWithDetails(id);
     if (!assignment) {
       throw ApiError.notFound('Faculty assignment not found', ErrorCode.RECORD_NOT_FOUND);
     }
+
+    const targetDepartmentId =
+      assignment.subjectOffering.subject.semesterCatalog.curriculumVersion.program.departmentId;
+
+    // 1. College-level scope check (Admin, Super Admin, Principal, etc.)
+    const collegeCheck = await authorizationService.check({
+      subject: { userId: actorUserId },
+      resource: 'facultyAssignment',
+      action: 'read',
+      scope: { type: 'COLLEGE' },
+    });
+
+    if (collegeCheck.decision.allowed) {
+      return toFacultyAssignmentDTO(assignment);
+    }
+
+    // 2. Department-level scope check
+    if (!targetDepartmentId) {
+      throw ApiError.forbidden(
+        'Faculty assignment does not belong to a department',
+        ErrorCode.FORBIDDEN_SCOPE,
+      );
+    }
+
+    const deptCheck = await authorizationService.check({
+      subject: { userId: actorUserId },
+      resource: 'facultyAssignment',
+      action: 'read',
+      scope: { type: 'DEPARTMENT', departmentId: targetDepartmentId },
+    });
+
+    if (!deptCheck.decision.allowed) {
+      throw ApiError.forbidden(
+        'You do not have access to faculty assignments outside your department',
+        ErrorCode.FORBIDDEN_SCOPE,
+      );
+    }
+
+    // 3. Faculty ownership vs Management authority:
+    // If the actor has management authority in the department (facultyAssignment:create, e.g. HOD),
+    // they can view any assignment in their department.
+    // If the actor is a regular faculty member without create permission, they can ONLY view their own assignment.
+    const canManageDept = await authorizationService.check({
+      subject: { userId: actorUserId },
+      resource: 'facultyAssignment',
+      action: 'create',
+      scope: { type: 'DEPARTMENT', departmentId: targetDepartmentId },
+    });
+
+    if (!canManageDept.decision.allowed) {
+      if (assignment.facultyUserId !== actorUserId) {
+        throw ApiError.forbidden(
+          'You can only access your own faculty assignments',
+          ErrorCode.FORBIDDEN_SCOPE,
+        );
+      }
+    }
+
     return toFacultyAssignmentDTO(assignment);
   }
 

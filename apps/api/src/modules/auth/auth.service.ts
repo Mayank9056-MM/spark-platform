@@ -104,6 +104,31 @@ export class AuthService {
       throw ApiError.unauthorized('User no longer exists', ErrorCode.UNAUTHENTICATED);
     }
 
+    if (user.status === 'SUSPENDED') {
+      throw ApiError.forbidden(
+        'Your account has been suspended. Please contact an administrator.',
+        ErrorCode.ACCOUNT_LOCKED,
+      );
+    }
+
+    if (user.status === 'DEACTIVATED' || user.status === 'ARCHIVED') {
+      throw ApiError.unauthorized('Account is inactive', ErrorCode.UNAUTHENTICATED);
+    }
+
+    if (user.status === 'PENDING_ACTIVATION') {
+      throw ApiError.unauthorized(
+        'Account is pending activation',
+        ErrorCode.ACCOUNT_PENDING_ACTIVATION,
+      );
+    }
+
+    if (user.status === 'LOCKED' && user.lockedUntil !== null && user.lockedUntil > new Date()) {
+      throw ApiError.forbidden(
+        'Account is locked. Please contact an administrator.',
+        ErrorCode.ACCOUNT_LOCKED,
+      );
+    }
+
     const assignments = await roleAssignmentService.getActiveAssignmentsForUser(userId);
     const uniqueRoleIds = [...new Set(assignments.map((assignment) => assignment.roleId))];
 
@@ -269,9 +294,44 @@ export class AuthService {
       throw ApiError.unauthorized('Refresh token expired', ErrorCode.TOKEN_EXPIRED);
     }
 
-    const session = await authRepository.findActiveSessionById(existingToken.sessionId);
+    const session = await authRepository.findActiveSessionWithUser(existingToken.sessionId);
     if (!session) {
       throw ApiError.unauthorized('Session no longer active', ErrorCode.TOKEN_INVALID);
+    }
+
+    const { user } = session;
+    if (user.deletedAt !== null) {
+      await authRepository.revokeSession(session.id);
+      throw ApiError.unauthorized('User no longer exists', ErrorCode.UNAUTHENTICATED);
+    }
+
+    if (user.status === 'SUSPENDED') {
+      await authRepository.revokeSession(session.id);
+      throw ApiError.forbidden(
+        'Your account has been suspended. Please contact an administrator.',
+        ErrorCode.ACCOUNT_LOCKED,
+      );
+    }
+
+    if (user.status === 'DEACTIVATED' || user.status === 'ARCHIVED') {
+      await authRepository.revokeSession(session.id);
+      throw ApiError.unauthorized('Account is inactive', ErrorCode.UNAUTHENTICATED);
+    }
+
+    if (user.status === 'PENDING_ACTIVATION') {
+      await authRepository.revokeSession(session.id);
+      throw ApiError.unauthorized(
+        'Account is pending activation',
+        ErrorCode.ACCOUNT_PENDING_ACTIVATION,
+      );
+    }
+
+    if (user.status === 'LOCKED' && user.lockedUntil !== null && user.lockedUntil > new Date()) {
+      await authRepository.revokeSession(session.id);
+      throw ApiError.forbidden(
+        'Account is locked. Please contact an administrator.',
+        ErrorCode.ACCOUNT_LOCKED,
+      );
     }
 
     await authRepository.revokeRefreshToken(existingToken.id);

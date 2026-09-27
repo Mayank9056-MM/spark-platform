@@ -61,8 +61,12 @@ export const createFacultyAssignment = async (req: Request, res: Response): Prom
 
 export const getFacultyAssignmentById = async (req: Request, res: Response): Promise<void> => {
   const params = req.valid?.params as FacultyAssignmentIdParams;
+  const actorUserId = req.user!.id;
 
-  const facultyAssignment = await facultyAssignmentService.getFacultyAssignmentById(params.id);
+  const facultyAssignment = await facultyAssignmentService.getFacultyAssignmentById(
+    actorUserId,
+    params.id,
+  );
 
   ApiResponse.ok(res, facultyAssignment);
 };

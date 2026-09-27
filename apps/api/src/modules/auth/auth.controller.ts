@@ -74,9 +74,14 @@ export const refresh = async (req: Request, res: Response) => {
 };
 
 export const logout = async (req: Request, res: Response) => {
-  // req.user is guaranteed by requireAuth on this route
-  const { id: actorUserId, sessionId } = req.user!;
-  await authService.logout(sessionId, actorUserId, extractRequestMetadata(req));
+  if (req.user) {
+    const { id: actorUserId, sessionId } = req.user;
+    try {
+      await authService.logout(sessionId, actorUserId, extractRequestMetadata(req));
+    } catch {
+      // Session may already be revoked or inactive; proceed with cookie clearing
+    }
+  }
 
   clearAuthCookies(res);
   ApiResponse.ok(res, null, 'Logged out');

@@ -10,6 +10,7 @@ import { subjectRepository } from '../academic/subjects/subject.repository.js';
 import { recordAuditTx } from '../audit/audit.service.js';
 import { AuditEntityType } from '../audit/audit.types.js';
 import { facultyAssignmentRepository } from '../faculty-assignments/facultyAssignment.repository.js';
+import { authorizationService } from '../rbac/authorization/authorization.service.js';
 import { roomRepository } from '../rooms/room.repository.js';
 import { subjectOfferingRepository } from '../subject-offerings/subjectOffering.repository.js';
 import { timeSlotRepository } from '../time-slots/timeSlot.repository.js';
@@ -132,6 +133,45 @@ export class TimetableService {
       const subject = await subjectRepository.findByIdTx(tx, subjectOffering.subjectId);
       if (!subject) {
         throw ApiError.notFound('Subject not found', ErrorCode.RECORD_NOT_FOUND);
+      }
+
+      // Scope validation: Ensure actor has authority over the department of the target timetable entry
+      const semesterCatalog = await tx.semesterCatalog.findUnique({
+        where: { id: subject.semesterCatalogId },
+        include: {
+          curriculumVersion: {
+            include: {
+              program: true,
+            },
+          },
+        },
+      });
+
+      const targetDepartmentId = semesterCatalog?.curriculumVersion.program.departmentId;
+
+      if (targetDepartmentId) {
+        const collegeCheck = await authorizationService.check({
+          subject: { userId: actorUserId },
+          resource: 'timetable',
+          action: 'create',
+          scope: { type: 'COLLEGE' },
+        });
+
+        if (!collegeCheck.decision.allowed) {
+          const deptCheck = await authorizationService.check({
+            subject: { userId: actorUserId },
+            resource: 'timetable',
+            action: 'create',
+            scope: { type: 'DEPARTMENT', departmentId: targetDepartmentId },
+          });
+
+          if (!deptCheck.decision.allowed) {
+            throw ApiError.forbidden(
+              'You cannot schedule timetable entries for subjects outside your department',
+              ErrorCode.FORBIDDEN_SCOPE,
+            );
+          }
+        }
       }
 
       const timeSlot = await timeSlotRepository.findByIdTx(tx, input.timeSlotId);

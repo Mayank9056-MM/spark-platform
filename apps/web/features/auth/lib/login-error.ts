@@ -34,6 +34,13 @@ const TIMEOUT_MESSAGE = "The server didn't respond in time. Try again.";
 const SERVER_MESSAGE = "Sign-in isn't available right now. Try again in a few minutes.";
 const FALLBACK_MESSAGE = 'Sign-in failed. Try again.';
 
+export function formatRateLimitedMessage(retryAfter?: number): string {
+  if (retryAfter !== undefined && retryAfter > 0) {
+    return `Too many sign-in attempts. Please try again in ${retryAfter} second${retryAfter === 1 ? '' : 's'}.`;
+  }
+  return RATE_LIMITED_MESSAGE;
+}
+
 /** True when the credentials were rejected, so the form can clear the password field. */
 export function isInvalidCredentialsError(error: unknown): boolean {
   return error instanceof ApiClientError && error.code === API_ERROR_CODE.INVALID_CREDENTIALS;
@@ -105,7 +112,7 @@ export function getStructuredLoginError(error: unknown): StructuredAuthError {
   if (error.status === 429) {
     return {
       title: 'Sign-in attempts exceeded',
-      description: RATE_LIMITED_MESSAGE,
+      description: formatRateLimitedMessage(error.retryAfter),
     };
   }
 
@@ -150,7 +157,7 @@ export function getLoginErrorMessage(error: unknown): string {
 
   // The rate limiter answers 429 without an error code.
   if (error.status === 429) {
-    return RATE_LIMITED_MESSAGE;
+    return formatRateLimitedMessage(error.retryAfter);
   }
 
   if (error.status >= 500) {
