@@ -115,7 +115,7 @@ export function createServer(): Express {
   app.use('/api/v1/faculty-assignments', facultyAssignmentRouter);
   app.use('/api/v1/timetables', timetableRouter);
   app.use('/api/v1/lectures', lectureRouter);
-  app.use('/api/v1/attendances', attendanceRouter);
+  app.use(['/api/v1/attendances', '/api/v1/attendance'], attendanceRouter);
   app.use('/api/v1/audit-logs', auditRouter);
   app.use('/api/v1/student', studentRouter);
   app.use('/api/v1/faculty', facultyRouter);

@@ -25,7 +25,7 @@ const SECTIONS = [
   'Overview',
   'Teaching',
   'Administration',
-  'Academic & Operations',
+  'Academic Operations',
   'Portals',
   'System',
 ] as const;

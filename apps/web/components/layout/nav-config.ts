@@ -24,7 +24,7 @@ export interface NavItem {
   href: string;
   icon: LucideIcon;
   section?:
-    'Overview' | 'Teaching' | 'Administration' | 'Academic & Operations' | 'Portals' | 'System';
+    'Overview' | 'Teaching' | 'Administration' | 'Academic Operations' | 'Portals' | 'System';
   /** One key, or any-of-these keys. Omitted items are unrestricted. */
   permission?: string | string[];
   /** Optional role restrictions. Item shown if user has any of these roles. */
@@ -102,7 +102,7 @@ export const NAVIGATION: readonly NavItem[] = [
     label: 'Admissions',
     href: '/app/admissions',
     icon: ClipboardListIcon,
-    section: 'Academic & Operations',
+    section: 'Academic Operations',
     permission: 'admission:read',
     roles: ['admin', 'super_admin', 'principal', 'hod', 'officer', 'clerk'],
   },
@@ -110,7 +110,7 @@ export const NAVIGATION: readonly NavItem[] = [
     label: 'Academic Structure',
     href: '/app/academics',
     icon: LandmarkIcon,
-    section: 'Academic & Operations',
+    section: 'Academic Operations',
     permission: 'program:read',
     roles: ['admin', 'super_admin', 'principal', 'hod'],
   },
@@ -118,7 +118,7 @@ export const NAVIGATION: readonly NavItem[] = [
     label: 'Attendance',
     href: '/app/attendance',
     icon: UserCheckIcon,
-    section: 'Academic & Operations',
+    section: 'Academic Operations',
     permission: 'attendance:read',
     roles: ['admin', 'super_admin', 'principal', 'hod', 'officer'],
   },
@@ -126,24 +126,24 @@ export const NAVIGATION: readonly NavItem[] = [
     label: 'Timetable',
     href: '/app/timetable',
     icon: CalendarClockIcon,
-    section: 'Academic & Operations',
+    section: 'Academic Operations',
     permission: 'timetable:read',
-    roles: ['admin', 'super_admin', 'principal', 'hod'],
-  },
-  {
-    label: 'Promotions',
-    href: '/app/promotions',
-    icon: TrendingUpIcon,
-    section: 'Academic & Operations',
-    permission: 'promotion:read',
     roles: ['admin', 'super_admin', 'principal', 'hod'],
   },
   {
     label: 'Faculty Assignments',
     href: '/app/faculty-assignments',
     icon: IdCardIcon,
-    section: 'Academic & Operations',
+    section: 'Academic Operations',
     permission: 'facultyAssignment:read',
+    roles: ['admin', 'super_admin', 'principal', 'hod'],
+  },
+  {
+    label: 'Promotions',
+    href: '/app/promotions',
+    icon: TrendingUpIcon,
+    section: 'Academic Operations',
+    permission: 'promotion:read',
     roles: ['admin', 'super_admin', 'principal', 'hod'],
   },
   {

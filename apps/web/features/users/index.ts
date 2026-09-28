@@ -16,3 +16,4 @@ export * from './components/user-status-badge';
 export * from './components/users-table';
 export * from './components/user-form';
 export * from './components/user-detail-card';
+export * from './components/create-user-dialog';
