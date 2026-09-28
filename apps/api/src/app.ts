@@ -121,6 +121,22 @@ export function createServer(): Express {
   app.use('/api/v1/faculty', facultyRouter);
   app.use('/api/v1/hod', hodRouter);
 
+  // Friendly redirects for web client auth links that may hit the API host directly
+  // (e.g. historical activation or password-reset emails pointing to API origin)
+  app.get(['/activate', '/password-reset/confirm'], (req, res, next) => {
+    try {
+      const target = new URL(req.path, env.APP_URL);
+      const incoming = new URL(req.originalUrl || req.url, 'http://localhost');
+      target.search = incoming.search;
+      if (target.origin === `${req.protocol}://${req.get('host')}`) {
+        return next(ApiError.notFound('Route not found'));
+      }
+      return res.redirect(302, target.toString());
+    } catch {
+      return next(ApiError.notFound('Route not found'));
+    }
+  });
+
   // Route-not-found must go through the SAME error pipeline as every other
   // error (Phase 11) — a bare res.json() here previously produced a
   // different response shape ({status,message}) than the rest of the API
