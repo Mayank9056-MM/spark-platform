@@ -1,5 +1,6 @@
 // apps/api/src/modules/rbac/roles/role.bootstrap.ts
 
+import { roleLogger } from '../../../lib/logger.js';
 import { prisma } from '../../../lib/prisma.js';
 import { PERMISSION_CATALOG } from '../permissions/permission.constants.js';
 import type { CatalogPermissionKey } from '../permissions/permission.constants.js';
@@ -7,8 +8,6 @@ import { permissionRepository } from '../permissions/permission.repository.js';
 import type { PermissionId } from '../permissions/permission.types.js';
 
 import { roleRepository } from './role.repository.js';
-
-import { roleLogger } from '../../../lib/logger.js';
 
 /**
  * Idempotent RBAC system-role bootstrap.

@@ -53,6 +53,24 @@ export const createProgramSchema = z.object({
 });
 export type CreateProgramFormValues = z.infer<typeof createProgramSchema>;
 
+export const updateProgramSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Program name is required').max(150).optional(),
+    code: z
+      .string()
+      .trim()
+      .min(1, 'Program code is required')
+      .max(20)
+      .regex(/^[A-Z0-9_-]+$/, 'Must be uppercase alphanumeric, hyphens, or underscores')
+      .optional(),
+    durationYears: z.coerce.number().int().min(1).max(6).optional(),
+    totalSemesters: z.coerce.number().int().min(1).max(12).optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field must be provided',
+  });
+export type UpdateProgramFormValues = z.infer<typeof updateProgramSchema>;
+
 // Academic Year
 export const academicYearSchema = z.object({
   id: z.string(),
@@ -71,6 +89,17 @@ export const createAcademicYearSchema = z.object({
   endDate: z.string().min(1, 'End date is required'),
 });
 export type CreateAcademicYearFormValues = z.infer<typeof createAcademicYearSchema>;
+
+export const updateAcademicYearSchema = z
+  .object({
+    label: z.string().trim().min(1, 'Academic year label is required').max(50).optional(),
+    startDate: z.string().min(1, 'Start date is required').optional(),
+    endDate: z.string().min(1, 'End date is required').optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field must be provided',
+  });
+export type UpdateAcademicYearFormValues = z.infer<typeof updateAcademicYearSchema>;
 
 // Curriculum Version
 export const CURRICULUM_STATUSES = ['DRAFT', 'ACTIVE', 'RETIRED'] as const;
@@ -162,6 +191,15 @@ export const createSemesterCatalogSchema = z.object({
   number: z.coerce.number().int().positive('Semester number must be positive'),
 });
 export type CreateSemesterCatalogFormValues = z.infer<typeof createSemesterCatalogSchema>;
+
+export const updateSemesterCatalogSchema = z
+  .object({
+    number: z.coerce.number().int().positive('Semester number must be positive').optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field must be provided',
+  });
+export type UpdateSemesterCatalogFormValues = z.infer<typeof updateSemesterCatalogSchema>;
 
 // Subject Schemas
 export const subjectSchema = z.object({

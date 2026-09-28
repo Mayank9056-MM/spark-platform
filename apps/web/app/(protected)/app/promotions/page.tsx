@@ -1,26 +1,19 @@
 'use client';
 
 import { RequirePermission } from '@/components/auth/require-permission';
-import { EnterpriseListView } from '@/components/erp/enterprise-list-view';
-
-const PROMOTION_COLUMNS = [
-  { header: 'Batch Identifier' },
-  { header: 'Academic Program' },
-  { header: 'Current Semester' },
-  { header: 'Target Semester' },
-  { header: 'Academic Year' },
-  { header: 'Progression Status' },
-] as const;
+import { PageHeader } from '@/components/erp/page-header';
+import { PromotionsTable } from '@/features/promotions';
 
 export default function PromotionsPage() {
   return (
     <RequirePermission require="promotion:read">
-      <EnterpriseListView
-        title="Student Promotions"
-        description="Progression batches, semester promotion evaluations, and academic standing decisions."
-        resourceName="Promotion Batches"
-        columns={PROMOTION_COLUMNS}
-      />
+      <div className="space-y-4">
+        <PageHeader
+          title="Student Promotions"
+          description="Progression batches, semester promotion evaluations, and academic standing decisions."
+        />
+        <PromotionsTable />
+      </div>
     </RequirePermission>
   );
 }

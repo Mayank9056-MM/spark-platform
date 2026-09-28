@@ -3,10 +3,9 @@ import { serializeError } from '@spark/shared/logger';
 import { env } from '../config/env.js';
 import { closeRedisConnections } from '../infrastructure/redis/redis.connection.js';
 import { logger } from '../lib/logger.js';
+import { ResendProvider } from '../modules/notifications/notification.providers/resend.provider.js';
 
 import { createNotificationWorker, type NotificationWorker } from './notification.worker.js';
-
-import { ResendProvider } from '../modules/notifications/notification.providers/resend.provider.js';
 
 /**
  * Entry point of the background-worker process. It builds the concrete

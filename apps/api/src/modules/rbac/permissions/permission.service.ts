@@ -4,6 +4,7 @@ import type { RolePermission } from '@spark/database/client';
 
 import { ApiError } from '../../../common/errors/ApiError.js';
 import { ErrorCode } from '../../../common/errors/ErrorCodes.js';
+import { permissionLogger } from '../../../lib/logger.js';
 import { prisma } from '../../../lib/prisma.js';
 import { recordAuditTx } from '../../audit/audit.service.js';
 import { AuditEntityType } from '../../audit/audit.types.js';
@@ -23,8 +24,6 @@ import type {
   ResolvePermissionsForRolesInput,
   UpdatePermissionInput,
 } from './permission.types.js';
-
-import { permissionLogger } from '../../../lib/logger.js';
 
 /**
  * Business-logic layer for the Permission domain.

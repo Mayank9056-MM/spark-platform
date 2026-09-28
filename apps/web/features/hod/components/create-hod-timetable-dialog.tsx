@@ -5,13 +5,12 @@ import {
   CheckCircle2,
   Clock,
   GraduationCap,
-  Layers,
   MapPin,
   Search,
   User,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { useCreateHodTimetableEntry, useHodTimetableOptions } from '../hooks/use-hod';
 
@@ -45,16 +44,16 @@ export function CreateHodTimetableDialog({
   const [roomId, setRoomId] = useState('');
   const [dayOfWeek, setDayOfWeek] = useState<DayKey>('MONDAY');
   const [timeSlotId, setTimeSlotId] = useState('');
-  const [effectiveFrom, setEffectiveFrom] = useState(
-    () => new Date().toISOString().split('T')[0]!,
-  );
+  const [effectiveFrom, setEffectiveFrom] = useState(() => new Date().toISOString().split('T')[0]);
   const [effectiveTo, setEffectiveTo] = useState('');
   const [assignmentSearch, setAssignmentSearch] = useState('');
 
   const { data: options, isLoading, isError } = useHodTimetableOptions(isOpen);
   const createTimetable = useCreateHodTimetableEntry();
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(isOpen);
+  if (prevOpen !== isOpen) {
+    setPrevOpen(isOpen);
     if (isOpen) {
       if (defaultFacultyAssignmentId) {
         setFacultyAssignmentId(defaultFacultyAssignmentId);
@@ -66,37 +65,32 @@ export function CreateHodTimetableDialog({
       setAssignmentSearch('');
       setEffectiveTo('');
     }
-  }, [isOpen, defaultFacultyAssignmentId]);
+  }
 
-  // When dayOfWeek changes, reset timeSlotId if the selected slot is not for the new day
   const availableSlotsForDay = useMemo(() => {
     if (!options?.timeSlots) return [];
     return options.timeSlots.filter((slot) => slot.dayOfWeek === dayOfWeek);
-  }, [options?.timeSlots, dayOfWeek]);
+  }, [options, dayOfWeek]);
 
-  useEffect(() => {
-    if (timeSlotId && availableSlotsForDay.length > 0) {
-      const isSlotValid = availableSlotsForDay.some((s) => s.id === timeSlotId);
-      if (!isSlotValid) {
-        setTimeSlotId('');
-      }
-    }
-  }, [dayOfWeek, availableSlotsForDay, timeSlotId]);
+  const handleDaySelect = (day: DayKey) => {
+    setDayOfWeek(day);
+    setTimeSlotId('');
+  };
 
   const selectedAssignment = useMemo(() => {
     if (!options?.facultyAssignments) return undefined;
     return options.facultyAssignments.find((fa) => fa.id === facultyAssignmentId);
-  }, [options?.facultyAssignments, facultyAssignmentId]);
+  }, [options, facultyAssignmentId]);
 
   const selectedRoom = useMemo(() => {
     if (!options?.rooms) return undefined;
     return options.rooms.find((r) => r.id === roomId);
-  }, [options?.rooms, roomId]);
+  }, [options, roomId]);
 
   const selectedTimeSlot = useMemo(() => {
     if (!options?.timeSlots) return undefined;
     return options.timeSlots.find((s) => s.id === timeSlotId);
-  }, [options?.timeSlots, timeSlotId]);
+  }, [options, timeSlotId]);
 
   const filteredAssignments = useMemo(() => {
     if (!options?.facultyAssignments) return [];
@@ -110,31 +104,33 @@ export function CreateHodTimetableDialog({
         fa.program.code.toLowerCase().includes(query) ||
         fa.component.type.toLowerCase().includes(query),
     );
-  }, [options?.facultyAssignments, assignmentSearch]);
+  }, [options, assignmentSearch]);
 
   const isValid = Boolean(
     facultyAssignmentId &&
-      roomId &&
-      timeSlotId &&
-      dayOfWeek &&
-      effectiveFrom &&
-      /^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom),
+    roomId &&
+    timeSlotId &&
+    dayOfWeek &&
+    effectiveFrom &&
+    /^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom),
   );
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) return;
 
-    await createTimetable.mutateAsync({
-      facultyAssignmentId,
-      roomId,
-      timeSlotId,
-      dayOfWeek,
-      effectiveFrom,
-      ...(effectiveTo ? { effectiveTo } : {}),
-    });
-
-    onClose();
+    void createTimetable
+      .mutateAsync({
+        facultyAssignmentId,
+        roomId,
+        timeSlotId,
+        dayOfWeek,
+        effectiveFrom,
+        ...(effectiveTo ? { effectiveTo } : {}),
+      })
+      .then(() => {
+        onClose();
+      });
   };
 
   if (!isOpen) return null;
@@ -152,7 +148,7 @@ export function CreateHodTimetableDialog({
         </button>
 
         <CardHeader className="border-border border-b pb-4">
-          <div className="flex items-center gap-2 text-xs font-semibold tracking-wider uppercase text-primary">
+          <div className="text-primary flex items-center gap-2 text-xs font-semibold tracking-wider uppercase">
             <Calendar className="size-4" />
             <span>Academic Schedule Allocation</span>
           </div>
@@ -160,7 +156,8 @@ export function CreateHodTimetableDialog({
             Schedule Class Timetable Slot
           </CardTitle>
           <CardDescription>
-            Allocate weekly timetable slots for departmental faculty assignments and institutional rooms.
+            Allocate weekly timetable slots for departmental faculty assignments and institutional
+            rooms.
           </CardDescription>
         </CardHeader>
 
@@ -168,26 +165,28 @@ export function CreateHodTimetableDialog({
           <CardContent className="space-y-6 pt-5">
             {isLoading ? (
               <div className="text-muted-foreground flex h-48 flex-col items-center justify-center gap-2 text-sm">
-                <Clock className="size-6 animate-spin text-primary" />
+                <Clock className="text-primary size-6 animate-spin" />
                 <span>Loading available courses, faculty assignments, and rooms…</span>
               </div>
             ) : isError ? (
               <div className="border-destructive/30 bg-destructive/5 text-destructive flex items-center gap-3 border p-4 text-sm">
                 <AlertCircle className="size-5 shrink-0" />
-                <span>Could not load scheduling options. Please verify network connection or reload.</span>
+                <span>
+                  Could not load scheduling options. Please verify network connection or reload.
+                </span>
               </div>
             ) : (
               <>
                 {/* 1. Course & Faculty Assignment Selector */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-foreground flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
-                      <BookOpen className="size-3.5 text-primary" />
+                    <label className="text-foreground flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase">
+                      <BookOpen className="text-primary size-3.5" />
                       1. Select Faculty Instructional Component
                       <span className="text-destructive">*</span>
                     </label>
                     {options?.facultyAssignments && (
-                      <span className="text-muted-foreground text-xs font-mono">
+                      <span className="text-muted-foreground font-mono text-xs">
                         {options.facultyAssignments.length} components available
                       </span>
                     )}
@@ -195,7 +194,8 @@ export function CreateHodTimetableDialog({
 
                   {options?.facultyAssignments.length === 0 ? (
                     <div className="border-border bg-muted/20 text-muted-foreground border p-4 text-xs">
-                      No faculty assignments found in this department. Please create faculty assignments first in the Faculty tab.
+                      No faculty assignments found in this department. Please create faculty
+                      assignments first in the Faculty tab.
                     </div>
                   ) : (
                     <>
@@ -210,7 +210,7 @@ export function CreateHodTimetableDialog({
                         />
                       </div>
 
-                      <div className="border-border divide-border max-h-48 overflow-y-auto divide-y border bg-muted/10">
+                      <div className="border-border divide-border bg-muted/10 max-h-48 divide-y overflow-y-auto border">
                         {filteredAssignments.map((fa) => {
                           const isSelected = fa.id === facultyAssignmentId;
                           return (
@@ -225,10 +225,12 @@ export function CreateHodTimetableDialog({
                             >
                               <div className="space-y-1">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-mono font-bold text-foreground">
+                                  <span className="text-foreground font-mono font-bold">
                                     {fa.subject.code}
                                   </span>
-                                  <span className="font-medium text-foreground">{fa.subject.name}</span>
+                                  <span className="text-foreground font-medium">
+                                    {fa.subject.name}
+                                  </span>
                                   <Badge variant="outline" className="font-mono text-[10px]">
                                     {fa.component.type}
                                   </Badge>
@@ -250,7 +252,7 @@ export function CreateHodTimetableDialog({
                               </div>
 
                               {isSelected && (
-                                <CheckCircle2 className="size-4 shrink-0 text-primary" />
+                                <CheckCircle2 className="text-primary size-4 shrink-0" />
                               )}
                             </div>
                           );
@@ -262,8 +264,8 @@ export function CreateHodTimetableDialog({
 
                 {/* 2. Recurrence: Day of Week & Time Slot */}
                 <div className="space-y-3">
-                  <label className="text-foreground flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
-                    <Clock className="size-3.5 text-primary" />
+                  <label className="text-foreground flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase">
+                    <Clock className="text-primary size-3.5" />
                     2. Select Day of Week & Time Slot
                     <span className="text-destructive">*</span>
                   </label>
@@ -274,7 +276,7 @@ export function CreateHodTimetableDialog({
                       <button
                         type="button"
                         key={d.key}
-                        onClick={() => setDayOfWeek(d.key)}
+                        onClick={() => handleDaySelect(d.key)}
                         className={`border px-2 py-2 text-center font-mono text-xs transition-colors ${
                           dayOfWeek === d.key
                             ? 'border-primary bg-primary text-primary-foreground font-semibold'
@@ -289,7 +291,8 @@ export function CreateHodTimetableDialog({
                   {/* Available Time Slots for Selected Day */}
                   {availableSlotsForDay.length === 0 ? (
                     <div className="border-border text-muted-foreground border border-dashed p-4 text-center text-xs">
-                      No time slots configured for {dayOfWeek}. Institutional time slots will be auto-generated.
+                      No time slots configured for {dayOfWeek}. Institutional time slots will be
+                      auto-generated.
                     </div>
                   ) : (
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -305,8 +308,10 @@ export function CreateHodTimetableDialog({
                                 : 'border-border bg-card text-muted-foreground hover:bg-muted/20'
                             }`}
                           >
-                            <span className="font-mono">{slot.startTime} - {slot.endTime}</span>
-                            {isSelected && <CheckCircle2 className="size-3.5 text-primary" />}
+                            <span className="font-mono">
+                              {slot.startTime} - {slot.endTime}
+                            </span>
+                            {isSelected && <CheckCircle2 className="text-primary size-3.5" />}
                           </div>
                         );
                       })}
@@ -316,8 +321,8 @@ export function CreateHodTimetableDialog({
 
                 {/* 3. Room Allocation */}
                 <div className="space-y-3">
-                  <label className="text-foreground flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
-                    <MapPin className="size-3.5 text-primary" />
+                  <label className="text-foreground flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase">
+                    <MapPin className="text-primary size-3.5" />
                     3. Select Classroom / Laboratory
                     <span className="text-destructive">*</span>
                   </label>
@@ -341,7 +346,7 @@ export function CreateHodTimetableDialog({
                             }`}
                           >
                             <div className="flex items-center justify-between">
-                              <span className="font-bold text-foreground">{room.name}</span>
+                              <span className="text-foreground font-bold">{room.name}</span>
                               <span className="text-muted-foreground font-mono text-[10px]">
                                 {room.capacity} seats
                               </span>
@@ -358,13 +363,13 @@ export function CreateHodTimetableDialog({
 
                 {/* 4. Effective Calendar Period */}
                 <div className="space-y-3">
-                  <label className="text-foreground flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
-                    <Calendar className="size-3.5 text-primary" />
+                  <label className="text-foreground flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase">
+                    <Calendar className="text-primary size-3.5" />
                     4. Effective Validity Period
                   </label>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
-                      <span className="text-muted-foreground block text-[11px] mb-1">
+                      <span className="text-muted-foreground mb-1 block text-[11px]">
                         Effective From <span className="text-destructive">*</span>
                       </span>
                       <input
@@ -376,7 +381,7 @@ export function CreateHodTimetableDialog({
                       />
                     </div>
                     <div>
-                      <span className="text-muted-foreground block text-[11px] mb-1">
+                      <span className="text-muted-foreground mb-1 block text-[11px]">
                         Effective To (Optional / Ongoing if blank)
                       </span>
                       <input
@@ -392,25 +397,37 @@ export function CreateHodTimetableDialog({
                 {/* 5. Scheduling Summary Preview */}
                 {selectedAssignment && selectedTimeSlot && selectedRoom && (
                   <div className="border-primary/30 bg-primary/5 space-y-2 border p-3.5 text-xs">
-                    <div className="flex items-center gap-1.5 font-semibold text-primary">
+                    <div className="text-primary flex items-center gap-1.5 font-semibold">
                       <CheckCircle2 className="size-4" />
                       <span>Class Schedule Confirmation Summary</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 text-muted-foreground sm:grid-cols-4">
+                    <div className="text-muted-foreground grid grid-cols-2 gap-2 sm:grid-cols-4">
                       <div>
-                        <span className="block text-[10px] uppercase font-bold text-foreground">Subject</span>
-                        <span>{selectedAssignment.subject.code} ({selectedAssignment.component.type})</span>
+                        <span className="text-foreground block text-[10px] font-bold uppercase">
+                          Subject
+                        </span>
+                        <span>
+                          {selectedAssignment.subject.code} ({selectedAssignment.component.type})
+                        </span>
                       </div>
                       <div>
-                        <span className="block text-[10px] uppercase font-bold text-foreground">Faculty</span>
+                        <span className="text-foreground block text-[10px] font-bold uppercase">
+                          Faculty
+                        </span>
                         <span>{selectedAssignment.faculty.name}</span>
                       </div>
                       <div>
-                        <span className="block text-[10px] uppercase font-bold text-foreground">Weekly Slot</span>
-                        <span className="font-mono">{dayOfWeek} {selectedTimeSlot.startTime}-{selectedTimeSlot.endTime}</span>
+                        <span className="text-foreground block text-[10px] font-bold uppercase">
+                          Weekly Slot
+                        </span>
+                        <span className="font-mono">
+                          {dayOfWeek} {selectedTimeSlot.startTime}-{selectedTimeSlot.endTime}
+                        </span>
                       </div>
                       <div>
-                        <span className="block text-[10px] uppercase font-bold text-foreground">Room</span>
+                        <span className="text-foreground block text-[10px] font-bold uppercase">
+                          Room
+                        </span>
                         <span>{selectedRoom.name}</span>
                       </div>
                     </div>

@@ -169,8 +169,15 @@ describe('Navigation Configuration & Role/Permission Filtering', () => {
     const studentNav = filterNavItems(NAVIGATION, studentRoles, studentPermissions);
     const visibleHrefs = studentNav.map((i) => i.href);
 
-    it('exposes Dashboard (/app/dashboard) to Student as their unified workspace', () => {
-      expect(visibleHrefs).toEqual(['/app/dashboard']);
+    it('exposes Dashboard and dedicated Student Portals section to Student', () => {
+      expect(visibleHrefs).toEqual([
+        '/app/dashboard',
+        '/app/student/academics',
+        '/app/student/timetable',
+        '/app/student/attendance',
+        '/app/student/academic-progress',
+        '/app/student/profile',
+      ]);
     });
 
     it('never exposes administrative modules to Student', () => {

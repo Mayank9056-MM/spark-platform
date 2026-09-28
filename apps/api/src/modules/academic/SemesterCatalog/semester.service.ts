@@ -7,6 +7,7 @@ import { ErrorCode } from '../../../common/errors/ErrorCodes.js';
 import { semesterCatalogLogger } from '../../../lib/logger.js';
 import { prisma } from '../../../lib/prisma.js';
 import { recordAuditTx } from '../../audit/audit.service.js';
+import { AuditEntityType } from '../../audit/audit.types.js';
 import { assertCurriculumStructureMutableTx } from '../curricula/curriculum.guard.js';
 import { programRepository } from '../programs/program.repository.js';
 
@@ -21,8 +22,6 @@ import type {
   SemesterCatalogId,
   UpdateSemesterCatalogInput,
 } from './semester.types.js';
-
-import { AuditEntityType } from '../../audit/audit.types.js';
 
 /**
  * Business-logic layer for the SemesterCatalog domain.

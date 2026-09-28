@@ -2,6 +2,7 @@
 
 import { ApiError } from '../../../common/errors/ApiError.js';
 import { ErrorCode } from '../../../common/errors/ErrorCodes.js';
+import { roleAssignmentLogger } from '../../../lib/logger.js';
 import { prisma } from '../../../lib/prisma.js';
 import { recordAuditTx } from '../../audit/audit.service.js';
 import { AuditEntityType } from '../../audit/audit.types.js';
@@ -22,8 +23,6 @@ import type {
   RoleAssignmentDTO,
   RoleAssignmentId,
 } from './role-assignment.types.js';
-
-import { roleAssignmentLogger } from '../../../lib/logger.js';
 
 /**
  * Business-logic layer for RoleAssignment.

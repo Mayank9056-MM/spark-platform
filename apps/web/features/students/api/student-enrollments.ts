@@ -4,6 +4,7 @@ import {
   type ListStudentEnrollmentsParams,
   type StudentEnrollment,
   studentEnrollmentSchema,
+  type UpdateStudentEnrollmentInput,
   type WithdrawStudentEnrollmentInput,
 } from '../schemas/student.schema';
 
@@ -53,6 +54,18 @@ export function cancelStudentEnrollment(
 ): Promise<StudentEnrollment> {
   return apiRequest(`/student-enrollments/${id}/cancel`, studentEnrollmentSchema, {
     method: 'POST',
+    body: payload,
+    signal,
+  });
+}
+
+export function updateStudentEnrollment(
+  id: string,
+  payload: UpdateStudentEnrollmentInput,
+  signal?: AbortSignal,
+): Promise<StudentEnrollment> {
+  return apiRequest(`/student-enrollments/${id}`, studentEnrollmentSchema, {
+    method: 'PATCH',
     body: payload,
     signal,
   });

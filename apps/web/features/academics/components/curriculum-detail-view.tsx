@@ -38,6 +38,7 @@ import {
   useDeleteSemesterCatalog,
   useDeleteSubject,
   useUpdateElectiveGroup,
+  useUpdateSemesterCatalog,
   useUpdateSubject,
 } from '../hooks/use-curriculum-structure-mutations';
 import type {
@@ -96,6 +97,7 @@ export function CurriculumDetailView({ id }: CurriculumDetailViewProps) {
 
   // Structure Mutations
   const createSemesterMutation = useCreateSemesterCatalog(id);
+  const updateSemesterMutation = useUpdateSemesterCatalog(id);
   const deleteSemesterMutation = useDeleteSemesterCatalog(id);
   const createSubjectMutation = useCreateSubject(id);
   const updateSubjectMutation = useUpdateSubject(id);
@@ -113,6 +115,13 @@ export function CurriculumDetailView({ id }: CurriculumDetailViewProps) {
 
   const [isRetireOpen, setIsRetireOpen] = React.useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = React.useState(false);
+
+  // Semester Edit state
+  const [semesterToEdit, setSemesterToEdit] = React.useState<{
+    id: string;
+    number: number;
+  } | null>(null);
+  const [editSemesterNumber, setEditSemesterNumber] = React.useState<number>(1);
 
   // Subject Modal state
   const [subjectModal, setSubjectModal] = React.useState<{
@@ -294,6 +303,37 @@ export function CurriculumDetailView({ id }: CurriculumDetailViewProps) {
         onError: (err) => {
           toast.add({
             title: 'Failed to add semester',
+            description: err.message,
+            type: 'error',
+          });
+        },
+      },
+    );
+  };
+
+  const openEditSemester = (semesterId: string, currentNumber: number) => {
+    setSemesterToEdit({ id: semesterId, number: currentNumber });
+    setEditSemesterNumber(currentNumber);
+  };
+
+  const handleEditSemesterSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!semesterToEdit) return;
+
+    updateSemesterMutation.mutate(
+      { id: semesterToEdit.id, values: { number: Number(editSemesterNumber) } },
+      {
+        onSuccess: () => {
+          toast.add({
+            title: 'Semester updated',
+            description: `Semester number updated to ${editSemesterNumber}.`,
+            type: 'success',
+          });
+          setSemesterToEdit(null);
+        },
+        onError: (err) => {
+          toast.add({
+            title: 'Failed to update semester',
             description: err.message,
             type: 'error',
           });
@@ -937,6 +977,18 @@ export function CurriculumDetailView({ id }: CurriculumDetailViewProps) {
                           </Button>
                         </PermissionGuard>
 
+                        <PermissionGuard require="semesterCatalog:update">
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            className="size-7"
+                            onClick={() => openEditSemester(sem.id, sem.number)}
+                          >
+                            <Edit2Icon className="size-3.5" />
+                            <span className="sr-only">Edit Semester</span>
+                          </Button>
+                        </PermissionGuard>
+
                         <PermissionGuard require="semesterCatalog:delete">
                           <Button
                             variant="ghost"
@@ -1363,6 +1415,61 @@ export function CurriculumDetailView({ id }: CurriculumDetailViewProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Semester Dialog */}
+      <Dialog
+        open={Boolean(semesterToEdit)}
+        onOpenChange={(open) => !open && setSemesterToEdit(null)}
+      >
+        <DialogContent className="max-w-xs">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold">
+              Edit Semester {semesterToEdit?.number}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Update semester sequence number in this curriculum version.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEditSemesterSubmit} className="space-y-4 pt-2">
+            <Field>
+              <FieldLabel className="text-xs font-medium">Semester Number *</FieldLabel>
+              <Input
+                type="number"
+                min={1}
+                max={programTotalSemesters || 12}
+                value={editSemesterNumber}
+                onChange={(e) => setEditSemesterNumber(Number(e.target.value))}
+                className="h-9 font-mono text-xs"
+                disabled={updateSemesterMutation.isPending}
+                required
+              />
+            </Field>
+            <DialogFooter className="gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => setSemesterToEdit(null)}
+                disabled={updateSemesterMutation.isPending}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                className="h-8 gap-1.5 text-xs font-semibold"
+                disabled={updateSemesterMutation.isPending}
+              >
+                {updateSemesterMutation.isPending && (
+                  <Loader2Icon className="size-3.5 animate-spin" />
+                )}
+                <span>Save</span>
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Semester Dialog */}
       <AlertDialog

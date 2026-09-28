@@ -1,26 +1,19 @@
 'use client';
 
 import { RequireRole } from '@/components/auth/require-role';
-import { EnterpriseListView } from '@/components/erp/enterprise-list-view';
-
-const FACULTY_ASSIGNMENT_COLUMNS = [
-  { header: 'Faculty Member' },
-  { header: 'Department' },
-  { header: 'Subject / Code' },
-  { header: 'Component (Th/Pr)' },
-  { header: 'Academic Year' },
-  { header: 'Status' },
-] as const;
+import { PageHeader } from '@/components/erp/page-header';
+import { FacultyAssignmentsTable } from '@/features/faculty-assignments';
 
 export default function FacultyAssignmentsPage() {
   return (
     <RequireRole allow={['admin', 'super_admin', 'principal', 'hod']}>
-      <EnterpriseListView
-        title="Faculty Assignments"
-        description="Faculty subject teaching allocations, academic workload distribution, and lecture component assignments."
-        resourceName="Faculty Assignments"
-        columns={FACULTY_ASSIGNMENT_COLUMNS}
-      />
+      <div className="space-y-4">
+        <PageHeader
+          title="Faculty Assignments"
+          description="Faculty subject teaching allocations, academic workload distribution, and lecture component assignments."
+        />
+        <FacultyAssignmentsTable />
+      </div>
     </RequireRole>
   );
 }

@@ -3,13 +3,18 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { createElectiveGroup, deleteElectiveGroup, updateElectiveGroup } from '../api/electives';
-import { createSemesterCatalog, deleteSemesterCatalog } from '../api/semester-catalogs';
+import {
+  createSemesterCatalog,
+  deleteSemesterCatalog,
+  updateSemesterCatalog,
+} from '../api/semester-catalogs';
 import { createSubject, deleteSubject, updateSubject } from '../api/subjects';
 import type {
   CreateElectiveGroupFormValues,
   CreateSemesterCatalogFormValues,
   CreateSubjectFormValues,
   UpdateElectiveGroupFormValues,
+  UpdateSemesterCatalogFormValues,
   UpdateSubjectFormValues,
 } from '../schemas/academic.schema';
 
@@ -26,6 +31,27 @@ export function useCreateSemesterCatalog(curriculumVersionId: string) {
       });
       void queryClient.invalidateQueries({
         queryKey: academicKeys.semesters(),
+      });
+    },
+  });
+}
+
+export function useUpdateSemesterCatalog(curriculumVersionId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, values }: { id: string; values: UpdateSemesterCatalogFormValues }) =>
+      updateSemesterCatalog(id, values),
+    onSuccess: (updated, { id }) => {
+      queryClient.setQueryData(academicKeys.semesterDetail(id), updated);
+      void queryClient.invalidateQueries({
+        queryKey: academicKeys.curriculumStructure(curriculumVersionId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: academicKeys.semesters(),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: academicKeys.curricula(),
       });
     },
   });

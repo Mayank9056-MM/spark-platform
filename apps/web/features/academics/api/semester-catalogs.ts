@@ -4,6 +4,7 @@ import {
   type CreateSemesterCatalogFormValues,
   type SemesterCatalog,
   semesterCatalogSchema,
+  type UpdateSemesterCatalogFormValues,
 } from '../schemas/academic.schema';
 
 import type { PaginatedResult } from '@/lib/api/envelope';
@@ -56,6 +57,18 @@ export function createSemesterCatalog(
 ): Promise<SemesterCatalog> {
   return apiRequest('/academic/semester-catalogs', semesterCatalogSchema, {
     method: 'POST',
+    body: payload,
+    signal,
+  });
+}
+
+export function updateSemesterCatalog(
+  id: string,
+  payload: UpdateSemesterCatalogFormValues,
+  signal?: AbortSignal,
+): Promise<SemesterCatalog> {
+  return apiRequest(`/academic/semester-catalogs/${id}`, semesterCatalogSchema, {
+    method: 'PATCH',
     body: payload,
     signal,
   });

@@ -33,6 +33,15 @@ export const createStudentEnrollmentSchema = z.object({
 });
 export type CreateStudentEnrollmentInput = z.infer<typeof createStudentEnrollmentSchema>;
 
+export const updateStudentEnrollmentSchema = z
+  .object({
+    rollNumber: z.string().trim().min(1, 'Roll number is required').max(50).optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: 'At least one field must be provided',
+  });
+export type UpdateStudentEnrollmentInput = z.infer<typeof updateStudentEnrollmentSchema>;
+
 export const cancelStudentEnrollmentSchema = z.object({
   reason: z.string().trim().min(1, 'Reason is required').max(500),
 });

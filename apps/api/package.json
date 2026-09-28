@@ -16,7 +16,8 @@
     "clean": "rm -rf dist",
     "db:seed:permissions": "tsx src/scripts/seed-permissions.ts",
     "db:bootstrap:super-admin": "tsx src/scripts/bootstrap-initial-super-admin.ts",
-    "worker": "node dist/workers/worker.bootstrap.js"
+    "worker": "node dist/workers/worker.bootstrap.js",
+    "worker:dev": "tsx watch src/workers/worker.bootstrap.ts"
   },
   "keywords": [],
   "author": "Mayank Mahajan",

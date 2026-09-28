@@ -2,6 +2,7 @@ import {
   type AcademicYear,
   academicYearSchema,
   type CreateAcademicYearFormValues,
+  type UpdateAcademicYearFormValues,
 } from '../schemas/academic.schema';
 
 import type { PaginatedResult } from '@/lib/api/envelope';
@@ -41,6 +42,18 @@ export function createAcademicYear(
 ): Promise<AcademicYear> {
   return apiRequest('/academic/academic-years', academicYearSchema, {
     method: 'POST',
+    body: payload,
+    signal,
+  });
+}
+
+export function updateAcademicYear(
+  id: string,
+  payload: UpdateAcademicYearFormValues,
+  signal?: AbortSignal,
+): Promise<AcademicYear> {
+  return apiRequest(`/academic/academic-years/${id}`, academicYearSchema, {
+    method: 'PATCH',
     body: payload,
     signal,
   });
