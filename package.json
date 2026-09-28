@@ -24,7 +24,8 @@
     "db:studio": "pnpm --filter @spark/database exec prisma studio",
     "db:seed:permissions": "pnpm --filter api run db:seed:permissions",
     "db:bootstrap:super-admin": "pnpm --filter api run db:bootstrap:super-admin",
-    "worker:dev": "pnpm --filter api run worker:dev"
+    "worker:dev": "pnpm --filter api run worker:dev",
+    "worker": "pnpm --filter api run worker"
   },
   "repository": {
     "type": "git",
