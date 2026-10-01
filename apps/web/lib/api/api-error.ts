@@ -56,12 +56,83 @@ export class ApiClientError extends Error {
   }: ApiClientErrorInit) {
     super(message, { cause });
     this.name = 'ApiClientError';
+    Object.setPrototypeOf(this, new.target.prototype);
     this.kind = kind;
     this.status = status;
     this.code = code;
     this.requestId = requestId;
     this.retryAfter = retryAfter;
   }
+}
+
+/**
+ * The single source of truth for checking if an error represents an unauthenticated session.
+ * HTTP 401 is unauthenticated; every other outcome (500, network failure, timeout, a malformed body)
+ * is a genuine error state that must not be silently treated as "not signed in".
+ *
+ * Robust against:
+ * - Direct ApiClientError instances
+ * - Next.js/Turbopack multi-chunk bundling (where instanceof can break across chunks)
+ * - Raw AxiosError instances
+ * - Nested error causes
+ * - Machine-readable auth error codes (UNAUTHENTICATED, TOKEN_EXPIRED, TOKEN_INVALID)
+ */
+export function isUnauthenticatedError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  // 1. Direct ApiClientError instance
+  if (error instanceof ApiClientError && error.status === 401) {
+    return true;
+  }
+
+  const candidate = error as {
+    name?: unknown;
+    status?: unknown;
+    statusCode?: unknown;
+    code?: unknown;
+    response?: {
+      status?: unknown;
+      data?: {
+        error?: {
+          code?: unknown;
+        };
+      };
+    };
+    cause?: unknown;
+  };
+
+  // 2. ApiClientError name check (multi-chunk bundle resiliency)
+  if (candidate.name === 'ApiClientError' && candidate.status === 401) {
+    return true;
+  }
+
+  // 3. Status 401 on error or response (AxiosError, Fetch Response, HTTP error)
+  if (
+    candidate.status === 401 ||
+    candidate.statusCode === 401 ||
+    candidate.response?.status === 401
+  ) {
+    return true;
+  }
+
+  // 4. Machine-readable authentication error codes
+  const code = candidate.code ?? candidate.response?.data?.error?.code;
+  if (
+    code === API_ERROR_CODE.TOKEN_EXPIRED ||
+    code === API_ERROR_CODE.TOKEN_INVALID ||
+    code === 'UNAUTHENTICATED'
+  ) {
+    return true;
+  }
+
+  // 5. Nested cause check
+  if (candidate.cause && typeof candidate.cause === 'object') {
+    return isUnauthenticatedError(candidate.cause);
+  }
+
+  return false;
 }
 
 /**

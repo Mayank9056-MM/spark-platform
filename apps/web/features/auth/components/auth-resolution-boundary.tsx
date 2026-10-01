@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useCurrentUser } from '../hooks/use-current-user';
 import { isUnauthenticatedError } from '../lib/auth-status';
@@ -43,11 +43,12 @@ interface AuthResolutionBoundaryProps {
  *   - isError && isUnauthenticatedError → unauthenticated → children
  *   - isError && !isUnauthenticatedError → genuine error (5xx/network)
  *                                          → shell (retry), children
- *                                          NEVER render
+ *                                          NEVER render unless user continues
  */
 export function AuthResolutionBoundary({ children }: AuthResolutionBoundaryProps) {
   const router = useRouter();
   const currentUser = useCurrentUser();
+  const [forceShowForm, setForceShowForm] = useState(false);
 
   const isConfirmedUnauthenticated =
     currentUser.isError && isUnauthenticatedError(currentUser.error);
@@ -59,18 +60,19 @@ export function AuthResolutionBoundary({ children }: AuthResolutionBoundaryProps
     }
   }, [currentUser.isSuccess, currentUser.data, router]);
 
-  if (isGenuineError) {
+  if (isGenuineError && !forceShowForm) {
     return (
       <AuthResolutionShell
         status="error"
         onRetry={() => {
           void currentUser.refetch();
         }}
+        onContinue={() => setForceShowForm(true)}
       />
     );
   }
 
-  if (isConfirmedUnauthenticated) {
+  if (isConfirmedUnauthenticated || forceShowForm) {
     return children;
   }
 
