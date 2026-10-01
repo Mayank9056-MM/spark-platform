@@ -115,22 +115,23 @@ export function CreateHodTimetableDialog({
     /^\d{4}-\d{2}-\d{2}$/.test(effectiveFrom),
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isValid) return;
 
-    void createTimetable
-      .mutateAsync({
+    try {
+      await createTimetable.mutateAsync({
         facultyAssignmentId,
         roomId,
         timeSlotId,
         dayOfWeek,
         effectiveFrom,
         ...(effectiveTo ? { effectiveTo } : {}),
-      })
-      .then(() => {
-        onClose();
       });
+      onClose();
+    } catch {
+      // Kept open on error so entered state is preserved
+    }
   };
 
   if (!isOpen) return null;
@@ -161,7 +162,11 @@ export function CreateHodTimetableDialog({
           </CardDescription>
         </CardHeader>
 
-        <form onSubmit={handleSubmit}>
+        <form
+          onSubmit={(e) => {
+            void handleSubmit(e);
+          }}
+        >
           <CardContent className="space-y-6 pt-5">
             {isLoading ? (
               <div className="text-muted-foreground flex h-48 flex-col items-center justify-center gap-2 text-sm">

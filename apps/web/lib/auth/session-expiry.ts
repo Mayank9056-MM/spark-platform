@@ -19,16 +19,24 @@ export function setSessionExpiredHandler(next: SessionExpiredHandler): () => voi
   };
 }
 
+let isExpiring = false;
+
 /**
  * Ends the session flag and notifies the listener once. Concurrent failures all
- * reach this function, but only the first finds the flag set; a visitor who was
- * never signed in never triggers a spurious "session expired" redirect.
+ * reach this function, but debouncing ensures the handler is invoked once.
  */
 export function expireSession(): void {
-  if (!sessionState.isSignedIn()) {
+  sessionState.clear();
+
+  if (isExpiring) {
     return;
   }
-
-  sessionState.clear();
-  handler?.();
+  isExpiring = true;
+  try {
+    handler?.();
+  } finally {
+    setTimeout(() => {
+      isExpiring = false;
+    }, 1000);
+  }
 }

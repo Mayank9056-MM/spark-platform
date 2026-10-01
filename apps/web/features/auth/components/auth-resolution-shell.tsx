@@ -10,6 +10,7 @@ import { Spinner } from '@/components/ui/spinner';
 interface AuthResolutionShellProps {
   status: 'pending' | 'error';
   onRetry?: () => void;
+  onContinue?: () => void;
 }
 
 /**
@@ -23,7 +24,7 @@ interface AuthResolutionShellProps {
  * Two states only. A confirmed-401 never reaches this component — that
  * branch renders LoginForm directly (see AuthResolutionBoundary).
  */
-export function AuthResolutionShell({ status, onRetry }: AuthResolutionShellProps) {
+export function AuthResolutionShell({ status, onRetry, onContinue }: AuthResolutionShellProps) {
   return (
     <div
       role="status"
@@ -48,17 +49,30 @@ export function AuthResolutionShell({ status, onRetry }: AuthResolutionShellProp
               Check your connection and try again.
             </p>
           </div>
-          {onRetry !== undefined && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs"
-              onClick={onRetry}
-            >
-              Retry
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {onRetry !== undefined && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={onRetry}
+              >
+                Retry
+              </Button>
+            )}
+            {onContinue !== undefined && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs"
+                onClick={onContinue}
+              >
+                Continue to Sign In
+              </Button>
+            )}
+          </div>
         </>
       )}
     </div>

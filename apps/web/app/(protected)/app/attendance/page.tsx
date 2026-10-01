@@ -6,6 +6,7 @@ import * as React from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import { InstitutionalAttendanceView } from '@/features/attendance';
 import { useAuth } from '@/features/auth';
 import { FacultyAttendanceView } from '@/features/faculty';
 import { HodDashboardContent } from '@/features/hod';
@@ -79,5 +80,15 @@ export default function AttendancePage() {
     return <FacultyAttendanceView />;
   }
 
-  return <HodDashboardContent initialTab="attendance" />;
+  // Institutional Administrators (Super Admin, Admin, Principal, Officer, Clerk) get institutional telemetry
+  if (hasAnyRole(roles, ['super_admin', 'admin', 'principal', 'officer', 'clerk'])) {
+    return <InstitutionalAttendanceView />;
+  }
+
+  // HOD gets department-scoped view
+  if (hasRole(roles, 'hod')) {
+    return <HodDashboardContent initialTab="attendance" />;
+  }
+
+  return <InstitutionalAttendanceView />;
 }

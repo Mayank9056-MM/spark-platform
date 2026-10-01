@@ -24,6 +24,7 @@ import { useDepartments } from '@/features/academics/hooks/use-departments';
 import { usePrograms } from '@/features/academics/hooks/use-programs';
 import { AdmissionStatusBadge } from '@/features/admissions/components/admission-status-badge';
 import { useAdmissions } from '@/features/admissions/hooks/use-admissions';
+import { CreateUserDialog } from '@/features/users';
 import { UserStatusBadge } from '@/features/users/components/user-status-badge';
 import { useUsers } from '@/features/users/hooks/use-users';
 import { formatDate } from '@/lib/formatters';
@@ -48,14 +49,14 @@ export default function AdminRoleCenterPage() {
           actions={
             <div className="flex flex-wrap items-center gap-2">
               <PermissionGuard require="user:create">
-                <Button
-                  render={<Link href="/app/users/new" />}
-                  size="sm"
-                  className="h-8 gap-1.5 text-xs font-semibold"
-                >
-                  <PlusIcon className="size-3.5" />
-                  <span>Add User</span>
-                </Button>
+                <CreateUserDialog
+                  trigger={
+                    <Button size="sm" className="h-8 gap-1.5 text-xs font-semibold">
+                      <PlusIcon className="size-3.5" />
+                      <span>Add User</span>
+                    </Button>
+                  }
+                />
               </PermissionGuard>
               <PermissionGuard require="admission:read">
                 <Button

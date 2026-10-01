@@ -11,6 +11,7 @@ import { FacultyTimetableCard, useFacultyTimetable } from '@/features/faculty';
 import { HodDashboardContent } from '@/features/hod';
 import { hasAnyRole, hasRole } from '@/features/rbac';
 import { StudentTimetableCard, useStudentTimetable } from '@/features/student';
+import { InstitutionalTimetableView } from '@/features/timetables';
 
 function StudentTimetableSection() {
   const { data: timetable = [], isLoading, error } = useStudentTimetable();
@@ -98,5 +99,15 @@ export default function TimetablePage() {
     return <FacultyTimetableSection />;
   }
 
-  return <HodDashboardContent initialTab="timetable" />;
+  // Institutional Administrators (Super Admin, Admin, Principal) get full institutional view
+  if (hasAnyRole(roles, ['super_admin', 'admin', 'principal'])) {
+    return <InstitutionalTimetableView />;
+  }
+
+  // HODs get department-scoped view
+  if (hasRole(roles, 'hod')) {
+    return <HodDashboardContent initialTab="timetable" />;
+  }
+
+  return <InstitutionalTimetableView />;
 }

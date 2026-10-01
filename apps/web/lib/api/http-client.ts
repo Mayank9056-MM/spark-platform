@@ -4,7 +4,7 @@ import { type z } from 'zod';
 import { getRefreshGeneration, refreshAccessToken } from '../auth/refresh-session';
 import { expireSession } from '../auth/session-expiry';
 
-import { API_ERROR_CODE, ApiClientError } from './api-error';
+import { API_ERROR_CODE, isUnauthenticatedError } from './api-error';
 import { createAxiosInstance } from './create-axios';
 import { type PaginatedResult, parsePaginatedEnvelope, parseSuccessEnvelope } from './envelope';
 import { toApiClientError } from './normalize-error';
@@ -59,7 +59,7 @@ async function handleResponseError(error: unknown): Promise<AxiosResponse<unknow
   try {
     await refreshAccessToken(config.requestGeneration);
   } catch (refreshError) {
-    if (refreshError instanceof ApiClientError && refreshError.status === 401) {
+    if (isUnauthenticatedError(refreshError)) {
       expireSession();
     }
     throw refreshError;

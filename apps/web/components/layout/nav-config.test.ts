@@ -65,7 +65,7 @@ describe('Navigation Configuration & Role/Permission Filtering', () => {
           'Overview',
           'Teaching',
           'Administration',
-          'Academic & Operations',
+          'Academic Operations',
           'Portals',
           'System',
         ]).toContain(item.section);
@@ -249,7 +249,7 @@ describe('Navigation Configuration & Role/Permission Filtering', () => {
     const hodNav = filterNavItems(NAVIGATION, hodRoles, allPermissions);
     const visibleHrefs = hodNav.map((i) => i.href);
 
-    it('exposes both Teaching and Academic & Operations to HOD', () => {
+    it('exposes both Teaching and Academic Operations to HOD', () => {
       expect(visibleHrefs).toContain('/app/dashboard');
       expect(visibleHrefs).toContain('/app/faculty/timetable');
       expect(visibleHrefs).toContain('/app/faculty/assignments');

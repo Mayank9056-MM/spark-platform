@@ -1,6 +1,15 @@
 'use client';
 
-import { ChevronDownIcon, LogOutIcon, SettingsIcon, ShieldCheckIcon, UserIcon } from 'lucide-react';
+import {
+  ChevronDownIcon,
+  LogOutIcon,
+  SettingsIcon,
+  ShieldCheckIcon,
+  ShieldIcon,
+  UserCogIcon,
+  UserIcon,
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +31,7 @@ function initials(firstName: string, lastName: string): string {
 }
 
 export function UserMenu() {
+  const router = useRouter();
   const { currentUser, logout, isLoggingOut } = useAuth();
 
   if (currentUser === undefined) {
@@ -77,6 +87,47 @@ export function UserMenu() {
             )}
           </DropdownMenuLabel>
         </DropdownMenuGroup>
+        {hasRole(roles, 'super_admin') && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                className="cursor-pointer py-1.5 text-xs"
+                onClick={() => {
+                  router.push('/app/super-admin');
+                }}
+              >
+                <ShieldIcon className="text-primary mr-2 size-3.5" aria-hidden="true" />
+                <span>Super Admin Console</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="cursor-pointer py-1.5 text-xs"
+                onClick={() => {
+                  router.push('/app/admin');
+                }}
+              >
+                <UserCogIcon className="text-muted-foreground mr-2 size-3.5" aria-hidden="true" />
+                <span>Admin Console</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </>
+        )}
+        {hasRole(roles, 'admin') && !hasRole(roles, 'super_admin') && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuItem
+                className="cursor-pointer py-1.5 text-xs"
+                onClick={() => {
+                  router.push('/app/admin');
+                }}
+              >
+                <UserCogIcon className="text-primary mr-2 size-3.5" aria-hidden="true" />
+                <span>Admin Console</span>
+              </DropdownMenuItem>
+            </DropdownMenuGroup>
+          </>
+        )}
         {hasAnyRole(roles, ['admin', 'super_admin']) && (
           <>
             <DropdownMenuSeparator />
@@ -84,7 +135,7 @@ export function UserMenu() {
               <DropdownMenuItem
                 className="cursor-pointer py-1.5 text-xs"
                 onClick={() => {
-                  window.location.href = '/app/settings';
+                  router.push('/app/settings');
                 }}
               >
                 <SettingsIcon className="text-muted-foreground mr-2 size-3.5" aria-hidden="true" />
@@ -100,7 +151,7 @@ export function UserMenu() {
               <DropdownMenuItem
                 className="cursor-pointer py-1.5 text-xs"
                 onClick={() => {
-                  window.location.href = '/app/student/profile';
+                  router.push('/app/student/profile');
                 }}
               >
                 <UserIcon className="text-muted-foreground mr-2 size-3.5" aria-hidden="true" />

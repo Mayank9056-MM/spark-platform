@@ -17,6 +17,7 @@ import { useUsers } from '../hooks/use-users';
 import { USER_STATUSES } from '../schemas/user.schema';
 import type { UserProfile, UserStatus } from '../schemas/user.schema';
 
+import { CreateUserDialog } from './create-user-dialog';
 import { UserStatusBadge } from './user-status-badge';
 
 import { PermissionGuard } from '@/components/auth/permission-guard';
@@ -256,14 +257,14 @@ export function UsersTable({ initialStatus }: UsersTableProps) {
       }
       actions={
         <PermissionGuard require="user:create">
-          <Button
-            render={<Link href="/app/users/new" />}
-            size="sm"
-            className="h-8 gap-1.5 text-xs font-semibold"
-          >
-            <PlusIcon className="size-3.5" aria-hidden="true" />
-            <span>Create User</span>
-          </Button>
+          <CreateUserDialog
+            trigger={
+              <Button size="sm" className="h-8 gap-1.5 text-xs font-semibold">
+                <PlusIcon className="size-3.5" aria-hidden="true" />
+                <span>Create User</span>
+              </Button>
+            }
+          />
         </PermissionGuard>
       }
       emptyTitle="No institutional users found"
@@ -274,15 +275,14 @@ export function UsersTable({ initialStatus }: UsersTableProps) {
       }
       emptyAction={
         <PermissionGuard require="user:create">
-          <Button
-            render={<Link href="/app/users/new" />}
-            size="sm"
-            variant="outline"
-            className="h-8 gap-1.5 text-xs"
-          >
-            <PlusIcon className="size-3.5" />
-            <span>Provision First User</span>
-          </Button>
+          <CreateUserDialog
+            trigger={
+              <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
+                <PlusIcon className="size-3.5" />
+                <span>Provision First User</span>
+              </Button>
+            }
+          />
         </PermissionGuard>
       }
     />
